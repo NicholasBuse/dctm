@@ -22,7 +22,9 @@
 #   <!-- Buffer events and log them asynchronously -->
 #   <appender name="ASYNC" class="org.apache.log4j.AsyncAppender">
 #     <errorHandler class="org.jboss.logging.util.OnlyOnceErrorHandler"/>
+#     <!--
 #     <appender-ref ref="FILE"/>
+#     -->
 #     <appender-ref ref="CONSOLE"/>
 #     <!--
 #     <appender-ref ref="SMTP"/>
@@ -108,7 +110,9 @@ force_kill() {
     return 1
   fi
 
-  kill -9 $srvr_pid
+  if is_alive $srvr_pid; then
+    kill -9 $srvr_pid
+  fi
 
 }
 
@@ -137,8 +141,19 @@ make_thread_dump() {
     return 1
   fi
 
-  kill -3 $srvr_pid
+  if is_alive $srvr_pid; then
+    kill -3 $srvr_pid
+  fi
 
+}
+
+###############################################################################
+# Makes thread dump of the running java process and executes less             #
+###############################################################################
+list_thread_dump() {
+  make_thread_dump
+  sleep 1
+  less +"?Full thread dump Java HotSpot" $OutFile
 }
 
 ###############################################################################
@@ -233,6 +248,20 @@ compute_diff_time() {
 }
 
 ###############################################################################
+# Kills process tree                                                          #
+###############################################################################
+killtree() {
+    local pid=$1
+    local sig=${2-TERM}
+    kill -stop $pid 
+    for child in `ps -o pid --no-headers --ppid $pid`; do
+        killtree $child $sig
+    done
+    kill -$sig $pid
+    kill -CONT $pid
+}
+
+###############################################################################
 # Rotate the specified log file. Rotated log files are named                  #
 # <server-name>.outXXXXX where XXXXX is the current log count and the         #
 # highest is the most recent. The log count starts at 00001 then cycles       #
@@ -241,8 +270,8 @@ compute_diff_time() {
 save_log() {
   fileLen=`echo ${OutFile} | wc -c`
   fileLen=`expr ${fileLen} + 1`
-  lastLog=`ls -r1 "$OutFile"* | head -1`
-  logCount=`ls -r1 "$OutFile"* | head -1 | cut -c $fileLen-`
+  lastLog=`ls -r1 "$OutFile"????? "$OutFile" | head -1`
+  logCount=`ls -r1 "$OutFile"????? "$OutFile" | head -1 | cut -c $fileLen-`
   if [ -z "$logCount" ]; then
     logCount=0
   fi
@@ -259,8 +288,24 @@ save_log() {
   esac
   rotatedLog="$OutFile"$zeroPads$logCount
   mv -f "$OutFile" "$rotatedLog"
-  print_info "Rotated server output log to '$rotatedLog'"
+  /sbin/fuser -k -HUP $rotatedLog >$NullDevice 2>&1
 }
+
+###############################################################################
+# Rotate the specified log file in size based manner                          #
+###############################################################################
+start_log_rotate() {
+  trap "" 1
+  sleep 60
+  if [ -f "$OutFile" ]; then
+    size=`stat -c '%s' "$OutFile"`
+    if [[ $size -ge $LogRotateSize ]]; then
+      save_log
+    fi
+  fi
+  start_log_rotate
+}
+
 
 ###############################################################################
 # Make sure server directory exists and is valid.                             #
@@ -319,7 +364,10 @@ do_start() {
 }
 
 start_and_monitor_server() {
+
+
   trap "rm -f $LockFile" 0
+  trap "exec >>$OutFile 2>&1" 1
   # Disconnect input and redirect stdout/stderr to server output log
   exec 0<$NullDevice
   exec >>$OutFile 2>&1
@@ -332,7 +380,13 @@ start_and_monitor_server() {
     count=`expr ${count} + 1`
     update_base_time
 
+    start_log_rotate &
+
     start_server_script
+
+    for pid in `jobs -p`; do
+      killtree $pid
+    done
 
     read_file "$StateFile"
     case $REPLY in
@@ -383,6 +437,7 @@ start_server_script() {
 
      write_file "$PidFile" $pid
      exec $CommandName $CommandArgs 2>&1) | (
+     trap "exec >>$OutFile 2>&1" 1
      IFS=""; while read line; do
        case $line in
 #JBoss AS 4
@@ -678,6 +733,8 @@ do_command() {
     KILL)   do_kill ;;
     STOP)   do_kill ;;
     GETLOG) cat "$OutFile" 2>$NullDevice ;;
+    TAILLOG) while true; do tail -100f "$OutFile" 2>$NullDevice; done ;;
+    THREADDUMP) list_thread_dump ;;
     *)      echo "Unrecognized command: $1" >&2 ;;
     esac
 }
@@ -776,6 +833,7 @@ PidFile=$JBOSS_HOME/server/$ServerName/nodemanager/$ServerName.pid
 LockFile=$JBOSS_HOME/server/$ServerName/nodemanager/$ServerName.lck
 StateFile=$JBOSS_HOME/server/$ServerName/nodemanager/$ServerName.state
 RestartInterval=10
+LogRotateSize=1073741824
 
 do_command
 
