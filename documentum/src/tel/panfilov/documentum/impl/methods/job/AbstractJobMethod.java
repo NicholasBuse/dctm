@@ -116,7 +116,7 @@ public abstract class AbstractJobMethod implements IDfMethod, IDfModule,
     private void createLockObject(IDfSession session) throws DfException {
         IDfSysObject lockObject = getLockObj(session);
         if (lockObject == null) {
-            lockObject = (IDfSysObject) session.newObject("dm_sysobject");
+            lockObject = (IDfSysObject) session.newObject("dm_folder");
             lockObject.setObjectName(getJobId());
             lockObject.save();
         }
@@ -125,7 +125,7 @@ public abstract class AbstractJobMethod implements IDfMethod, IDfModule,
     private IDfSysObject getLockObj(IDfSession session) throws DfException {
         String lockObjectName = getJobId();
         return (IDfSysObject) session
-                .getObjectByQualification("dm_sysobject where object_name='"
+                .getObjectByQualification("dm_folder where object_name='"
                         + lockObjectName + "'");
     }
 
