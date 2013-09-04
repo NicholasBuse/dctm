@@ -5,8 +5,6 @@
 
 import re
 from dctmpy import *
-from dctmpy import AttrInfo, AttrValue, TypeInfo
-from dctmpy.typedef import *
 
 
 class TypedObject(object):

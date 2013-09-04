@@ -4,7 +4,6 @@
 #
 
 from dctmpy import *
-from dctmpy import AttrValue
 from dctmpy.obj.typedobject import TypedObject
 
 
