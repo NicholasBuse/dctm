@@ -137,6 +137,7 @@ STRING = "STRING"
 ID = "ID"
 TIME = "TIME"
 DOUBLE = "DOUBLE"
+UNDEFINED = "UNDEFINED"
 
 TYPES = {
     0: BOOL,
@@ -333,7 +334,7 @@ def parseTime(value, iso8601Time=False):
 
 
 def getTypeFormCache(attrName):
-    TypeCache().get(attrName)
+    return TypeCache().get(attrName)
 
 
 def addTypeToCache(typeObj):
@@ -409,7 +410,7 @@ class AttrInfo(object):
         self.__restriction = kwargs.pop('restriction', None)
 
     def clone(self):
-        return AttrInfo({
+        return AttrInfo(**{
             'position': self.__position,
             'name': self.__name,
             'type': self.__type,
@@ -512,9 +513,9 @@ class TypeInfo(object):
         return self.__attrs
 
     def extend(self, typeInfo):
-        if self.getName() == typeInfo.getName():
-            for i in typeInfo.attrs()[::1]:
-                attrInfo = i.clone
+        if self.superType() == typeInfo.getName():
+            for i in typeInfo.attrs()[::-1]:
+                attrInfo = i.clone()
                 self.__attrs.insert(0, attrInfo)
                 if self.__isD6Serialization:
                     if attrInfo.position() is None:

@@ -40,6 +40,7 @@ class Collection(TypedObject):
                 if self.recordsInBatch() is not None:
                     self.recordsInBatch(self.recordsInBatch() - 1)
 
+        self.close()
         return None
 
     def readAll(self):
@@ -74,8 +75,14 @@ class Collection(TypedObject):
         return self.__mayBeMore
 
     def close(self):
-        if self.__collectionId is not None and self.collection() > 0:
-            self.session().closeCollection(self.collection())
+        try:
+            if self.collection() is not None and self.collection() > 0:
+                self.session().closeCollection(self.collection())
+        finally:
+            self.collection(None)
+
+    def __del__(self):
+        self.close()
 
 
 class PersistentCollection(TypedObject):

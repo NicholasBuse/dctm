@@ -160,13 +160,13 @@ class TypedObject(object):
 
     def readAttrValue(self, attrType):
         return {
-            "INT": lambda: self.readInt(),
-            "STRING": lambda: self.readString(),
-            "TIME": lambda: self.readTime(),
-            "BOOL": lambda: self.readBoolean(),
-            "ID": lambda: self.nextString(),
-            "DOUBLE": lambda: self.nextString(),
-            "UNDEFINED": lambda: self.nextString()
+            INT: lambda: self.readInt(),
+            STRING: lambda: self.readString(),
+            TIME: lambda: self.readTime(),
+            BOOL: lambda: self.readBoolean(),
+            ID: lambda: self.nextString(),
+            DOUBLE: lambda: self.nextString(),
+            UNDEFINED: lambda: self.nextString()
         }[attrType]()
 
     def deserializeTypeInfo(self):

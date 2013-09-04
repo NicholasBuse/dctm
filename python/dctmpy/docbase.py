@@ -249,7 +249,7 @@ class Docbase(Netwise):
 
     def fetchByQualification(self, qualification):
         collection = self.query("select r_object_id from %s" % qualification)
-        record = collection.nextBatch()
+        record = collection.nextRecord()
         if record is not None:
             return self.fetchObject(record.r_object_id)
         return None
@@ -370,3 +370,4 @@ class Response(object):
         if value is not None:
             self.__recordsInBatch = value
         return self.__recordsInBatch
+

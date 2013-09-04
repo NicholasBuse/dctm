@@ -21,5 +21,10 @@ class EntryPoints(TypedObject):
             self.__methods = dict((names[i], poss[i]) for i in range(0, len(names)))
         return self.__methods
 
+    def __getattr__(self, name):
+        if name in self.map():
+            return self.map()[name]
+        else:
+            raise AttributeError
 
 

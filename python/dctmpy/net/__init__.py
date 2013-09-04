@@ -76,9 +76,9 @@ def serializeIntegerArray(intarray):
 def serializeValue(value):
     return {
         type(""): lambda x: serializeString(x),
-        type(u""): lambda x: serializeString(x),
         type(0): lambda x: serializeInteger(x),
         type([]): lambda x: serializeIntegerArray(x),
+        type(None): lambda x: serializeString("")
     }[type(value)](value)
 
 
