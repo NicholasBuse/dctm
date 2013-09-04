@@ -4,7 +4,6 @@
 #
 
 import array
-from dctmpy.e import *
 from dctmpy.net import *
 
 

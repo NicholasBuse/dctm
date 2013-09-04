@@ -4,7 +4,6 @@
 #
 
 from dctmpy import *
-from dctmpy.obj.collectionentry import CollectionEntry
 from dctmpy.obj.typedobject import TypedObject
 
 
@@ -57,5 +56,27 @@ class Collection(TypedObject):
             self.session().closeCollection(self.__collectionId)
 
 
+class PersistentCollection(TypedObject):
+    def __init__(self, **kwargs):
+        super(PersistentCollection, self).__init__(**kwargs)
 
+    def deserialize(self, message=None):
+        if isEmpty(message) and isEmpty(self.rawdata()):
+            raise ParserException("Empty data")
+        if not isEmpty(message):
+            self.rawdata(message)
+        self.type(self.session().fetchType(message, 0))
+
+    def shouldDeserializeType(self):
+        return False
+
+
+class CollectionEntry(TypedObject):
+    def __init__(self, **kwargs):
+        super(CollectionEntry, self).__init__(**kwargs)
+
+    def deserialize(self, message=None):
+        super(CollectionEntry, self).deserialize(message)
+        if self.isD6Serialization():
+            self.readInt()
 

@@ -5,7 +5,6 @@
 
 import array
 from dctmpy import *
-from dctmpy.e import *
 from dctmpy.net import *
 from dctmpy.net.response import Response
 

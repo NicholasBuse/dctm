@@ -1,9 +1,10 @@
-from dctmpy import *
-from dctmpy.obj.typedobject import TypedObject
 #  Copyright (c) 2013 Andrey B. Panfilov <andrew@panfilov.tel>
 #
 #  See main module for license.
 #
+
+from dctmpy import *
+from dctmpy.obj.typedobject import TypedObject
 
 
 class Persistent(TypedObject):

@@ -5,7 +5,6 @@
 
 import re
 from dctmpy import *
-from dctmpy.e import *
 from dctmpy.type import *
 from dctmpy.type.attrinfo import AttrInfo
 from dctmpy.type.attrvalue import AttrValue
@@ -257,7 +256,10 @@ class TypedObject(object):
         return self.read(self.readInt() + 1)[1:]
 
     def readTime(self):
-        return self.nextToken(CRLF_PATTERN)
+        timestr = self.nextToken(CRLF_PATTERN)
+        if timestr.startswith("xxx "):
+            timestr = timestr[5:]
+        return parseTime(timestr, self.iso8601Time())
 
     def readBoolean(self):
         return bool(self.nextString(BOOLEAN_PATTERN))
@@ -291,10 +293,5 @@ class TypedObject(object):
                 return attrValue.getValues()[0]
         else:
             raise AttributeError
-
-
-def parseAddr(value):
-    if re.match("INET_ADDR", value) is None:
-        raise ParserException("Invalid address: %s" % value)
 
 

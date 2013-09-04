@@ -28,6 +28,7 @@ import locale
 import platform
 import re
 import time
+import calendar
 
 LONG_LOCALES = {
     'Unknown': 0, 'German': 1, 'English_US': 2, 'English_UK': 3, 'Spanish_Modern': 4, 'Spanish_Castilian': 5,
@@ -149,6 +150,11 @@ TYPES = {
 NULL_ID = "0" * 16
 EMPTY_STRING = ""
 
+MONTHS = {
+    'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
+    'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12,
+}
+
 
 def getPlatformId():
     (system, release, version) = platform.system_alias(platform.system(), platform.release(), platform.version())
@@ -233,6 +239,51 @@ def isEmpty(value):
     return False
 
 
+def parseAddr(value):
+    if isEmpty(value):
+        raise ParserException("Invalid address: %s" % value)
+    if not value.startswith("INET_ADDR"):
+        raise ParserException("Invalid address: %s" % value)
+    chunks = value.split(" ")
+    return chunks[4] + ":" + int(chunks[2], 16)
+
+
+def parseTime(value, iso8601Time=False):
+    if isEmpty(value) or "nulldate" == value:
+        return None
+    if iso8601Time:
+        chunks = re.split("[-:TZ]", value)
+        if len(chunks) != 7:
+            raise ParserException("Invalid date: %s" % value)
+        return calendar.timegm(
+            [int(chunks[0]), MONTHS[chunks[1]], int(chunks[2]), int(chunks[3]), int(chunks[4]), int(chunks[5])])
+    else:
+        chunks = re.split("[: ]", value)
+        if len(chunks) != 6:
+            raise ParserException("Invalid date: %s" % value)
+        return time.mktime(
+            [int(chunks[5]), MONTHS[chunks[0]], int(chunks[1]), int(chunks[2]), int(chunks[3]), int(chunks[4]), 0, 0,
+             -1])
+
+
+def getTypeFormCache(attrName):
+    TypeCache().get(attrName)
+
+
+def addTypeToCache(typeObj):
+    TypeCache().add(typeObj)
+
+
+class ParserException(RuntimeError):
+    def __init__(self, *args, **kwargs):
+        super(ParserException, self).__init__(*args, **kwargs)
+
+
+class ProtocolException(RuntimeError):
+    def __init__(self, *args, **kwargs):
+        super(ProtocolException, self).__init__(*args, **kwargs)
+
+
 class TypeCache:
     class __impl:
 
@@ -250,7 +301,6 @@ class TypeCache:
                 typeInfo.extend(self.get(superType))
             self.__cache[typeInfo.getName()] = typeInfo
 
-
     __instance = None
 
     def __init__(self):
@@ -263,11 +313,3 @@ class TypeCache:
 
     def add(self, typeObj):
         return self.__instance.add(typeObj)
-
-
-def getTypeFormCache(attrName):
-    TypeCache().get(attrName)
-
-
-def addTypeToCache(typeObj):
-    TypeCache().add(typeObj)

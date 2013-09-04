@@ -4,7 +4,7 @@
 #
 
 from dctmpy.netwise import Netwise
-from dctmpy.obj.docbasemap import DocbaseMap
+from dctmpy.obj.docbroker import DocbaseMap
 from dctmpy.req import *
 
 NETWISE_VERSION = 1

@@ -5,10 +5,9 @@
 
 import re
 from dctmpy.netwise import Netwise
-from dctmpy.obj.collection import Collection
+from dctmpy.obj.collection import Collection, PersistentCollection
 from dctmpy.obj.entrypoints import EntryPoints
 from dctmpy.obj.persistent import Persistent
-from dctmpy.obj.pesistentcollection import PersistentCollection
 from dctmpy.obj.type import TypeObject
 from dctmpy.obj.typedobject import TypedObject
 from dctmpy.req import *

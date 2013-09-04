@@ -2,8 +2,7 @@
 #
 #  See main module for license.
 #
-
-from dctmpy.e import *
+from dctmpy import *
 
 
 class TypeInfo(object):

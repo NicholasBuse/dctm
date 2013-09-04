@@ -4,7 +4,6 @@
 #
 
 from dctmpy import *
-from dctmpy.e import *
 from dctmpy.obj.typedobject import TypedObject
 from dctmpy.type.attrvalue import AttrValue
 
@@ -58,3 +57,21 @@ class DocbrokerObject(TypedObject):
             'repeating': repeating,
         }))
 
+
+class DocbaseMap(DocbrokerObject):
+    def __init__(self, **kwargs):
+        super(DocbaseMap, self).__init__(**kwargs)
+
+    def getRecords(self):
+        if 'r_docbase_name' in self.getAttrs():
+            return [self.getRecord(index) for index in range(0, len(self.r_docbase_name))]
+        return []
+
+    def getRecord(self, index):
+        return {
+            'name': self.r_docbase_name[index],
+            'id': self.r_docbase_id[index],
+            'description': self.r_docbase_description[index],
+            'version': self.r_server_version[index],
+            'address': parseAddr(self.i_server_connection_address[index]),
+        }
