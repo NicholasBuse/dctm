@@ -10,7 +10,9 @@ from dctmpy.obj.typedobject import TypedObject
 class Collection(TypedObject):
     def __init__(self, **kwargs):
         self.__collectionId = kwargs.pop('collection', None)
-        self.__batchSize = kwargs.pop('batchSize', None)
+        self.__batchsize = kwargs.pop('batchsize', None)
+        self.__recordsInBatch = None
+        self.__mayBeMore = None
         super(Collection, self).__init__(**kwargs)
 
     def shouldDeserializeType(self):
@@ -20,13 +22,23 @@ class Collection(TypedObject):
         return False
 
     def nextRecord(self):
-        if isEmpty(self.rawdata()):
-            self.rawdata(self.session().nextRecord(self.__collectionId, self.__batchSize))
+        firstinbatch = False
+        if isEmpty(self.rawdata()) and (self.mayBeMore() is None or self.mayBeMore()):
+            response = self.session().nextBatch(self.collection(), self.batchsize())
+            self.rawdata(response.data())
+            self.recordsInBatch(response.recordsInBatch())
+            self.mayBeMore(response.mayBeMore())
+            firstinbatch = True
 
-        if not isEmpty(self.rawdata()):
-            entry = CollectionEntry(session=self.session(), type=self.type(), rawdata=self.rawdata())
-            self.rawdata(entry.rawdata())
-            return entry
+        if not isEmpty(self.rawdata()) and (self.recordsInBatch() is None or self.recordsInBatch() > 0):
+            try:
+                entry = CollectionEntry(session=self.session(), type=self.type(), rawdata=self.rawdata(),
+                                        first=firstinbatch)
+                self.rawdata(entry.rawdata())
+                return entry
+            finally:
+                if self.recordsInBatch() is not None:
+                    self.recordsInBatch(self.recordsInBatch() - 1)
 
         return None
 
@@ -46,14 +58,24 @@ class Collection(TypedObject):
             self.__collectionId = value
         return self.__collectionId
 
-    def batchSize(self, value=None):
+    def batchsize(self, value=None):
         if value is not None:
-            self.__batchSize = value
-        return self.__batchSize
+            self.__batchsize = value
+        return self.__batchsize
+
+    def recordsInBatch(self, value=None):
+        if value is not None:
+            self.__recordsInBatch = value
+        return self.__recordsInBatch
+
+    def mayBeMore(self, value=None):
+        if value is not None:
+            self.__mayBeMore = value
+        return self.__mayBeMore
 
     def close(self):
-        if self.__collectionId is not None and self.__collectionId > 0:
-            self.session().closeCollection(self.__collectionId)
+        if self.__collectionId is not None and self.collection() > 0:
+            self.session().closeCollection(self.collection())
 
 
 class PersistentCollection(TypedObject):
@@ -73,10 +95,14 @@ class PersistentCollection(TypedObject):
 
 class CollectionEntry(TypedObject):
     def __init__(self, **kwargs):
+        self.__firstInBatch = kwargs.pop('first', False)
         super(CollectionEntry, self).__init__(**kwargs)
+
+    def readHeader(self):
+        if self.__firstInBatch:
+            super(CollectionEntry, self).readHeader()
 
     def deserialize(self, message=None):
         super(CollectionEntry, self).deserialize(message)
         if self.isD6Serialization():
             self.readInt()
-

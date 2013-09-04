@@ -155,6 +155,19 @@ MONTHS = {
     'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12,
 }
 
+ENCODE = {
+    0: 'A', 1: 'B', 2: 'C', 3: 'D', 4: 'E', 5: 'F', 6: 'G', 7: 'H',
+    8: 'I', 9: 'J', 10: 'K', 11: 'L', 12: 'M', 13: 'N', 14: 'O', 15: 'P',
+    16: 'Q', 17: 'R', 18: 'S', 19: 'T', 20: 'U', 21: 'V', 22: 'W', 23: 'X',
+    24: 'Y', 25: 'Z', 26: 'a', 27: 'b', 28: 'c', 29: 'd', 30: 'e', 31: 'f',
+    32: 'g', 33: 'h', 34: 'i', 35: 'j', 36: 'k', 37: 'l', 38: 'm', 39: 'n',
+    40: 'o', 41: 'p', 42: 'q', 43: 'r', 44: 's', 45: 't', 46: 'u', 47: 'v',
+    48: 'w', 49: 'x', 50: 'y', 51: 'z', 52: '0', 53: '1', 54: '2', 55: '3',
+    56: '4', 57: '5', 58: '6', 59: '7', 60: '8', 61: '9', 62: '+', 63: '/',
+}
+
+DECODE = dict((v, k) for k, v in ENCODE.items())
+
 
 def getPlatformId():
     (system, release, version) = platform.system_alias(platform.system(), platform.release(), platform.version())
@@ -261,6 +274,8 @@ def parseTime(value, iso8601Time=False):
         chunks = re.split("[: ]", value)
         if len(chunks) != 6:
             raise ParserException("Invalid date: %s" % value)
+        if not chunks[0] in MONTHS:
+            raise ParserException("Invalid month: %s" % chunks[0])
         return time.mktime(
             [int(chunks[5]), MONTHS[chunks[0]], int(chunks[1]), int(chunks[2]), int(chunks[3]), int(chunks[4]), 0, 0,
              -1])
@@ -272,6 +287,24 @@ def getTypeFormCache(attrName):
 
 def addTypeToCache(typeObj):
     TypeCache().add(typeObj)
+
+
+def intToPseudoBase64(value):
+    result = ""
+    while value >= 64:
+        result += ENCODE.get(value % 64)
+        value = (value - (value % 64)) / 64
+    result += ENCODE.get(value)
+    return result
+
+
+def pseudoBase64ToInt(value):
+    result = 0
+    for c in list(value)[::-1]:
+        if c not in DECODE:
+            return None
+        result = (result * 64 + DECODE.get(c))
+    return result
 
 
 class ParserException(RuntimeError):
@@ -313,3 +346,127 @@ class TypeCache:
 
     def add(self, typeObj):
         return self.__instance.add(typeObj)
+
+
+class AttrInfo(object):
+    def __init__(self, **kwargs):
+        self.__position = kwargs.pop('position', None)
+        self.__name = kwargs.pop('name', None)
+        self.__type = kwargs.pop('type', None)
+        self.__repeating = kwargs.pop('repeating', None)
+        self.__length = kwargs.pop('length', None)
+        self.__restriction = kwargs.pop('restriction', None)
+
+    def clone(self):
+        return AttrInfo({
+            'position': self.__position,
+            'name': self.__name,
+            'type': self.__type,
+            'repeating': self.__repeating,
+            'length': self.__length,
+            'restriction': self.__restriction,
+        })
+
+    def name(self):
+        return self.__name
+
+    def position(self):
+        return self.__position
+
+    def repeating(self):
+        return self.__repeating
+
+    def type(self):
+        return self.__type
+
+    def length(self):
+        return self.__length
+
+
+class AttrValue(object):
+    def __init__(self, **kwargs):
+        self.__name = kwargs.pop('name', None)
+        self.__type = kwargs.pop('type', None)
+        self.__length = kwargs.pop('length', None)
+        if self.__length is None:
+            self.__length = 0
+        self.__values = kwargs.pop('values', None)
+        if self.__values is None:
+            self.__values = []
+        elif type([]) != type(self.__values):
+            self.__values = [self.__values]
+        self.__repeating = kwargs.pop('repeating', None)
+        if self.__repeating is None:
+            self.__repeating = False
+
+    def getName(self):
+        return self.__name
+
+    def getType(self):
+        return self.__type
+
+    def isRepeating(self):
+        return self.__repeating
+
+    def getLength(self):
+        return self.__length
+
+    def getValues(self):
+        return self.__values
+
+
+class TypeInfo(object):
+    def __init__(self, **kwargs):
+        self.__name = kwargs.pop('name', None)
+        self.__id = kwargs.pop('id', None)
+        self.__vstamp = kwargs.pop('vstamp', None)
+        self.__version = kwargs.pop('version', None)
+        self.__cache = kwargs.pop('cache', None)
+        self.__super = kwargs.pop('super', None)
+        self.__sharedparent = kwargs.pop('sharedparent', None)
+        self.__aspectname = kwargs.pop('aspectname', None)
+        self.__aspectshareflag = kwargs.pop('aspectshareflag', None)
+        self.__isD6Serialization = kwargs.pop('isD6Serialization', None)
+        self.__attrs = []
+        self.__positions = {}
+
+    def add(self, attrInfo):
+        self.__attrs.append(attrInfo)
+        if self.__isD6Serialization:
+            if attrInfo.position() is not None:
+                self.__positions[attrInfo.position()] = attrInfo
+            elif self.__name != "GeneratedType":
+                raise RuntimeError("Empty position")
+
+    def get(self, index):
+        if self.__isD6Serialization:
+            if self.__name != "GeneratedType":
+                return self.__positions[index]
+        return self.__attrs[index]
+
+    def attrCount(self):
+        return len(self.__attrs)
+
+    def superType(self, value=None):
+        if value is not None:
+            self.__super = value
+        return self.__super
+
+    def getName(self, value=None):
+        if value is not None:
+            self.__name = value
+        return self.__name
+
+    def attrs(self):
+        return self.__attrs
+
+    def extend(self, typeInfo):
+        if self.getName() == typeInfo.getName():
+            for i in typeInfo.attrs()[::1]:
+                attrInfo = i.clone
+                self.__attrs.insert(0, attrInfo)
+                if self.__isD6Serialization:
+                    if attrInfo.position() is None:
+                        raise ParserException("Empty Position")
+                    self.__positions[attrInfo.position()] = attrInfo
+            self.__super = typeInfo.superType()

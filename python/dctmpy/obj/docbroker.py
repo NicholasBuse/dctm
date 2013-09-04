@@ -4,8 +4,8 @@
 #
 
 from dctmpy import *
+from dctmpy import AttrValue
 from dctmpy.obj.typedobject import TypedObject
-from dctmpy.type.attrvalue import AttrValue
 
 
 class DocbrokerObject(TypedObject):

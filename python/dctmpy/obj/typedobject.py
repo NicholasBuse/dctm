@@ -5,10 +5,8 @@
 
 import re
 from dctmpy import *
-from dctmpy.type import *
-from dctmpy.type.attrinfo import AttrInfo
-from dctmpy.type.attrvalue import AttrValue
-from dctmpy.type.typeinfo import TypeInfo
+from dctmpy import AttrInfo, AttrValue, TypeInfo
+from dctmpy.typedef import *
 
 
 class TypedObject(object):
@@ -18,6 +16,7 @@ class TypedObject(object):
         self.__type = kwargs.pop('type', None)
         self.__rawdata = kwargs.pop('rawdata', None)
         self.__attrs = {}
+        self.__hasExtendedAttrs = False
 
         if self.__serializationVersion is None:
             self.__serializationVersion = self.__session.serializationVersion()
@@ -40,6 +39,9 @@ class TypedObject(object):
             return self.__session.iso8601Time()
         return False
 
+    def hasExtendedAttrs(self):
+        return self.__hasExtendedAttrs
+
     def deserialize(self, message=None):
         if isEmpty(message) and isEmpty(self.__rawdata):
             raise ParserException("Empty data")
@@ -48,10 +50,6 @@ class TypedObject(object):
 
         self.readHeader()
 
-        if self.isD6Serialization():
-            if self.readInt() != self.__session.serializationVersionHint():
-                raise ParserException("Invalid serialization algorithm")
-
         if self.__type is None and self.shouldDeserializeType():
             self.__type = self.deserializeType()
 
@@ -59,7 +57,8 @@ class TypedObject(object):
             self.deserializeObject()
 
     def readHeader(self):
-        pass
+        if self.isD6Serialization():
+            self.readInt()
 
     def deserializeType(self):
         header = self.nextToken()
@@ -96,7 +95,7 @@ class TypedObject(object):
         self.deserializeExtendedAttr()
 
     def deserializeAttr(self, index):
-        position = {True: lambda: base64ToInt(self.nextString(BASE64_PATTERN)),
+        position = {True: lambda: pseudoBase64ToInt(self.nextString(BASE64_PATTERN)),
                     False: lambda: index}[self.isD6Serialization()]()
 
         if position is None:
@@ -131,14 +130,19 @@ class TypedObject(object):
         self.__attrs[attrValue.getName()] = attrValue
 
     def deserializeExtendedAttr(self):
-        for i in range(0, self.readInt()):
+        attrCount = self.readInt()
+        if attrCount > 0:
+            self.__hasExtendedAttrs = True
+        else:
+            return
+        for i in range(0, attrCount):
             attrName = self.nextString(ATTRIBUTE_PATTERN)
             attrType = self.nextString(ATTRIBUTE_PATTERN)
             repeating = REPEATING == self.nextString()
             length = self.readInt()
 
             if isEmpty(attrType):
-                raise ParserException("Unknown type: %s" % attrType)
+                raise ParserException("Unknown typedef: %s" % attrType)
 
             result = []
 
@@ -189,7 +193,7 @@ class TypedObject(object):
 
     def deserializeAttrInfo(self):
         return AttrInfo(**{
-            'position': {True: lambda: base64ToInt(self.nextString(BASE64_PATTERN)),
+            'position': {True: lambda: pseudoBase64ToInt(self.nextString(BASE64_PATTERN)),
                          False: lambda: None}[self.isD6Serialization()](),
             'name': self.nextString(ATTRIBUTE_PATTERN),
             'type': self.nextString(TYPE_PATTERN),
@@ -257,8 +261,10 @@ class TypedObject(object):
 
     def readTime(self):
         timestr = self.nextToken(CRLF_PATTERN)
+        if timestr.startswith(" "):
+            timestr = timestr[1:]
         if timestr.startswith("xxx "):
-            timestr = timestr[5:]
+            timestr = timestr[4:]
         return parseTime(timestr, self.iso8601Time())
 
     def readBoolean(self):

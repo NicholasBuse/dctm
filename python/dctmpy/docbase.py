@@ -176,7 +176,7 @@ class Docbase(Netwise):
         if self.__session is not None:
             data.insert(0, self.__session)
 
-        (valid, odata, collection, persistent, hasnext) = (None, None, None, None, None)
+        (valid, odata, collection, persistent, maybemore, count) = (None, None, None, None, None, None)
 
         response = self.request(type=rpcId, data=data, immediate=True).receive()
         message = response.next()
@@ -185,15 +185,16 @@ class Docbase(Netwise):
             valid = int(response.next()) > 0
         elif rpcId == RPC_APPLY:
             collection = int(response.next())
-            valid = int(response.last()) > 0
-            persistent = int(response.last()) > 0
+            persistent = int(response.next()) > 0
+            maybemore = int(response.next()) > 0
         elif rpcId == RPC_CLOSE_COLLECTION:
             pass
         elif rpcId == RPC_GET_NEXT_PIECE:
             pass
         elif rpcId == RPC_MULTI_NEXT:
-            collection = int(response.next())
-            valid = collection >= 0
+            count = int(response.next())
+            maybemore = int(response.next()) > 0
+            valid = int(response.next()) > 0
         else:
             valid = int(response.next()) > 0
 
@@ -215,7 +216,8 @@ class Docbase(Netwise):
         if odata == 0x10 or (odata == 0x01 and rpcId == RPC_GET_NEXT_PIECE):
             message += self.sendRpc(RPC_GET_NEXT_PIECE).data()
 
-        return Response(data=message, odata=odata, persistent=persistent, collection=collection)
+        return Response(data=message, odata=odata, persistent=persistent, collection=collection, maybemore=maybemore,
+                        recordcount=count)
 
     def apply(self, **kwargs):
         request = kwargs.pop('request', None)
@@ -234,7 +236,7 @@ class Docbase(Netwise):
         result = clazz(session=self, rawdata=data)
         if response.collection() is not None:
             result.collection(response.collection())
-            result.batchSize(DEFAULT_BATCH_SIZE)
+            result.batchsize(DEFAULT_BATCH_SIZE)
 
         return result
 
@@ -263,8 +265,8 @@ class Docbase(Netwise):
         if result.RETURN_VALUE != 1:
             raise RuntimeError("Unable to authenticate")
 
-    def nextRecord(self, collection, batchHint=DEFAULT_BATCH_SIZE):
-        return self.sendRpc(rpcid=RPC_MULTI_NEXT, data=[collection, batchHint]).data()
+    def nextBatch(self, collection, batchHint=DEFAULT_BATCH_SIZE):
+        return self.sendRpc(rpcid=RPC_MULTI_NEXT, data=[collection, batchHint])
 
     def closeCollection(self, collection):
         self.sendRpc(rpcid=RPC_CLOSE_COLLECTION, data=[collection])
@@ -278,7 +280,6 @@ class Docbase(Netwise):
                 'GET_ERRORS': 558,
             }
         return self.__entryPoints
-
 
     def getEntryPoints(self):
         self.entryPoints(
@@ -299,7 +300,7 @@ class Docbase(Netwise):
 
     def fetchByQualification(self, qualification):
         collection = self.query("select r_object_id from %s" % qualification)
-        record = collection.nextRecord()
+        record = collection.nextBatch()
         if record is not None:
             return self.fetchObject(record.r_object_id)
         return None
@@ -388,6 +389,8 @@ class Response(object):
         self.__odata = kwargs.pop('odata', None)
         self.__persistent = kwargs.pop('persistent', None)
         self.__collection = kwargs.pop('collection', None)
+        self.__recordsInBatch = kwargs.get('recordsinbacth', None)
+        self.__mayBeMore = kwargs.get('maybemore', None)
 
     def data(self, value=None):
         if value is not None:
@@ -408,3 +411,13 @@ class Response(object):
         if value is not None:
             self.__collection = value
         return self.__collection
+
+    def mayBeMore(self, value=None):
+        if value is not None:
+            self.__mayBeMore = value
+        return self.__mayBeMore
+
+    def recordsInBatch(self, value=None):
+        if value is not None:
+            self.__recordsInBatch = value
+        return self.__recordsInBatch
