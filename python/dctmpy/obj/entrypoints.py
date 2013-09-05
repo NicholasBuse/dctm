@@ -11,13 +11,15 @@ class EntryPoints(TypedObject):
         self.__methods = None
         super(EntryPoints, self).__init__(**dict(
             kwargs,
-            **{'serializationVersion': 0}
+            **{'serializationversion': 0}
         ))
 
     def map(self):
         if self.__methods is None:
-            names = self.getAttrs()['name'].getValues()
-            poss = self.getAttrs()['pos'].getValues()
+            if len(self.getAttrs()) == 0:
+                return {}
+            names = self.getAttrs()['name'].values
+            poss = self.getAttrs()['pos'].values
             self.__methods = dict((names[i], poss[i]) for i in range(0, len(names)))
         return self.__methods
 
@@ -25,6 +27,6 @@ class EntryPoints(TypedObject):
         if name in self.map():
             return self.map()[name]
         else:
-            raise AttributeError
+            return super(EntryPoints, self).__getattr__(name)
 
 

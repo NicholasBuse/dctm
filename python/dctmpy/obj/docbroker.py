@@ -11,7 +11,7 @@ class DocbrokerObject(TypedObject):
     def __init__(self, **kwargs):
         super(DocbrokerObject, self).__init__(**dict(
             kwargs,
-            **{'serializationVersion': 0}
+            **{'serializationversion': 0}
         ))
 
     def deserializeType(self):
@@ -61,6 +61,10 @@ class DocbaseMap(DocbrokerObject):
     def __init__(self, **kwargs):
         super(DocbaseMap, self).__init__(**kwargs)
 
+    def add(self, attrValue):
+        attrValue.repeating = True
+        super(DocbrokerObject, self).add(attrValue)
+
     def getRecords(self):
         if 'r_docbase_name' in self.getAttrs():
             return [self.getRecord(index) for index in range(0, len(self.r_docbase_name))]
@@ -72,5 +76,5 @@ class DocbaseMap(DocbrokerObject):
             'id': self.r_docbase_id[index],
             'description': self.r_docbase_description[index],
             'version': self.r_server_version[index],
-            'address': parseAddr(self.i_server_connection_address[index]),
+            'address': parseAddr(self.i_host_addr[index]),
         }

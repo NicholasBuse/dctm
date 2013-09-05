@@ -8,13 +8,16 @@ import socket
 
 
 class Netwise(object):
+    attrs = ['version', 'release', 'inumber', 'sequence', 'sockopts']
+
     def __init__(self, **kwargs):
-        self.__version = kwargs.pop('version', None)
-        self.__release = kwargs.pop('release', None)
-        self.__inumber = kwargs.pop('inumber', None)
-        self.__sockopts = kwargs
+        for attribute in Netwise.attrs:
+            self.__setattr__("__" + attribute, kwargs.pop(attribute, None))
+        if self.sockopts is None:
+            self.sockopts = kwargs
+        if self.sequence is None:
+            self.sequence = 0
         self.__socket = None
-        self.__sequence = 0
 
     def connected(self):
         if self.__socket is None:
@@ -24,12 +27,10 @@ class Netwise(object):
     def socket(self):
         if not self.connected():
             try:
-                host = self.__sockopts.get('host', None)
-                port = self.__sockopts.get('port', None)
-
+                host = self.sockopts.get('host', None)
+                port = self.sockopts.get('port', None)
                 if host is None or port is None:
                     raise RuntimeError("Invalid host or port")
-
                 self.__socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 self.__socket.connect((host, port))
             except:
@@ -47,13 +48,19 @@ class Netwise(object):
     def __del__(self):
         self.disconnect()
 
-
     def request(self, **kwargs):
         return Request(**dict(kwargs, **{
             'socket': self.socket(),
-            'sequence': ++self.__sequence,
-            'version': self.__version,
-            'release': self.__release,
-            'inumber': self.__inumber,
+            'sequence': ++self.sequence,
+            'version': self.version,
+            'release': self.release,
+            'inumber': self.inumber,
         }))
+
+    def __getattr__(self, name):
+        if name in Netwise.attrs:
+            return self.__getattribute__("__" + name)
+        else:
+            raise AttributeError
+
 

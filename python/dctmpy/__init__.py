@@ -310,7 +310,7 @@ def parseAddr(value):
     if not value.startswith("INET_ADDR"):
         raise ParserException("Invalid address: %s" % value)
     chunks = value.split(" ")
-    return chunks[4] + ":" + int(chunks[2], 16)
+    return chunks[4] + ":" + str(int(chunks[2], 16))
 
 
 def parseTime(value, iso8601Time=False):
@@ -381,10 +381,10 @@ class TypeCache:
             return None
 
         def add(self, typeInfo):
-            superType = typeInfo.superType()
+            superType = typeInfo.super
             if superType in self.__cache and superType != "NULL":
                 typeInfo.extend(self.get(superType))
-            self.__cache[typeInfo.getName()] = typeInfo
+            self.__cache[typeInfo.name] = typeInfo
 
     __instance = None
 
@@ -401,124 +401,89 @@ class TypeCache:
 
 
 class AttrInfo(object):
+    attrs = ['position', 'name', 'type', 'repeating', 'length', 'restriction']
+
     def __init__(self, **kwargs):
-        self.__position = kwargs.pop('position', None)
-        self.__name = kwargs.pop('name', None)
-        self.__type = kwargs.pop('type', None)
-        self.__repeating = kwargs.pop('repeating', None)
-        self.__length = kwargs.pop('length', None)
-        self.__restriction = kwargs.pop('restriction', None)
+        for attribute in AttrInfo.attrs:
+            self.__setattr__("__" + attribute, kwargs.pop(attribute, None))
 
     def clone(self):
-        return AttrInfo(**{
-            'position': self.__position,
-            'name': self.__name,
-            'type': self.__type,
-            'repeating': self.__repeating,
-            'length': self.__length,
-            'restriction': self.__restriction,
-        })
+        return AttrInfo(**dict((x, self.__getattr__(x)) for x in AttrInfo.attrs))
 
-    def name(self):
-        return self.__name
-
-    def position(self):
-        return self.__position
-
-    def repeating(self):
-        return self.__repeating
-
-    def type(self):
-        return self.__type
-
-    def length(self):
-        return self.__length
+    def __getattr__(self, name):
+        if name in AttrInfo.attrs:
+            return self.__getattribute__("__" + name)
+        else:
+            raise AttributeError
 
 
 class AttrValue(object):
+    attrs = ['name', 'type', 'length', 'repeating', 'values']
+
     def __init__(self, **kwargs):
-        self.__name = kwargs.pop('name', None)
-        self.__type = kwargs.pop('type', None)
-        self.__length = kwargs.pop('length', None)
-        if self.__length is None:
-            self.__length = 0
-        self.__values = kwargs.pop('values', None)
-        if self.__values is None:
-            self.__values = []
-        elif type([]) != type(self.__values):
-            self.__values = [self.__values]
-        self.__repeating = kwargs.pop('repeating', None)
-        if self.__repeating is None:
-            self.__repeating = False
+        for attribute in AttrValue.attrs:
+            self.__setattr__("__" + attribute, kwargs.pop(attribute, None))
+        if self.values is None:
+            self.values = []
+        if type([]) != type(self.values):
+            self.values = [self.values]
+        if self.repeating is None:
+            self.repeating = False
+        if self.length is None:
+            self.length = 0
 
-    def getName(self):
-        return self.__name
-
-    def getType(self):
-        return self.__type
-
-    def isRepeating(self):
-        return self.__repeating
-
-    def getLength(self):
-        return self.__length
-
-    def getValues(self):
-        return self.__values
+    def __getattr__(self, name):
+        if name in AttrValue.attrs:
+            return self.__getattribute__("__" + name)
+        else:
+            raise AttributeError
 
 
 class TypeInfo(object):
+    attrs = ['name', 'id', 'vstamp', 'version', 'cache', 'super', 'sharedparent', 'aspectname', 'aspectshareflag',
+             'd6serialization']
+
     def __init__(self, **kwargs):
-        self.__name = kwargs.pop('name', None)
-        self.__id = kwargs.pop('id', None)
-        self.__vstamp = kwargs.pop('vstamp', None)
-        self.__version = kwargs.pop('version', None)
-        self.__cache = kwargs.pop('cache', None)
-        self.__super = kwargs.pop('super', None)
-        self.__sharedparent = kwargs.pop('sharedparent', None)
-        self.__aspectname = kwargs.pop('aspectname', None)
-        self.__aspectshareflag = kwargs.pop('aspectshareflag', None)
-        self.__isD6Serialization = kwargs.pop('isD6Serialization', None)
+        for attribute in TypeInfo.attrs:
+            self.__setattr__("__" + attribute, kwargs.pop(attribute, None))
         self.__attrs = []
         self.__positions = {}
 
-    def add(self, attrInfo):
+    def __getattr__(self, name):
+        if name in TypeInfo.attrs:
+            return self.__getattribute__("__" + name)
+        elif name == "attributes":
+            return self.__attrs
+        else:
+            raise AttributeError
+
+    def append(self, attrInfo):
         self.__attrs.append(attrInfo)
-        if self.__isD6Serialization:
-            if attrInfo.position() is not None:
-                self.__positions[attrInfo.position()] = attrInfo
+        if self.d6serialization:
+            if attrInfo.position is not None:
+                self.__positions[attrInfo.position] = attrInfo
+            elif self.__name != "GeneratedType":
+                raise RuntimeError("Empty position")
+
+    def insert(self, index, attrInfo):
+        self.__attrs.insert(index, attrInfo)
+        if self.d6serialization:
+            if attrInfo.position is not None:
+                self.__positions[attrInfo.position] = attrInfo
             elif self.__name != "GeneratedType":
                 raise RuntimeError("Empty position")
 
     def get(self, index):
-        if self.__isD6Serialization:
-            if self.__name != "GeneratedType":
+        if self.d6serialization:
+            if self.name != "GeneratedType":
                 return self.__positions[index]
         return self.__attrs[index]
 
-    def attrCount(self):
+    def count(self):
         return len(self.__attrs)
 
-    def superType(self, value=None):
-        if value is not None:
-            self.__super = value
-        return self.__super
-
-    def getName(self, value=None):
-        if value is not None:
-            self.__name = value
-        return self.__name
-
-    def attrs(self):
-        return self.__attrs
-
     def extend(self, typeInfo):
-        if self.superType() == typeInfo.getName():
-            for i in typeInfo.attrs()[::-1]:
-                attrInfo = i.clone()
-                self.__attrs.insert(0, attrInfo)
-                if self.__isD6Serialization:
-                    if attrInfo.position() is None:
-                        raise ParserException("Empty Position")
-                    self.__positions[attrInfo.position()] = attrInfo
-            self.__super = typeInfo.superType()
+        if self.super == typeInfo.name:
+            for i in typeInfo.attributes[::-1]:
+                self.insert(0, i.clone())
+            self.super = typeInfo.super

@@ -9,7 +9,7 @@ from dctmpy.obj.typedobject import TypedObject
 
 
 def requestDocbaseMap(handle, version):
-    obj = TypedObject(serializationVersion=0)
+    obj = TypedObject(serializationversion=0)
     obj.add(AttrValue(name="DBR_REQUEST_NAME", type=STRING, values=["DBRN_GET_DOCBASE_MAP"]))
     obj.add(AttrValue(name="DBR_REQUEST_VERSION", type=INT, values=[1]))
     obj.add(AttrValue(name="DBR_REQUEST_HANDLE", type=STRING, values=[handle]))
@@ -18,7 +18,7 @@ def requestDocbaseMap(handle, version):
 
 
 def requestServerMap(handle, version, docbase):
-    obj = TypedObject(serializationVersion=0)
+    obj = TypedObject(serializationversion=0)
     obj.add(AttrValue(name="r_docbase_name", type=STRING, values=[docbase]))
     obj.add(AttrValue(name="r_map_name", type=STRING, values=["mn_cs_map"]))
     obj.add(AttrValue(name="DBR_REQUEST_NAME", type=STRING, values=["DBRN_GET_SERVER_MAP"]))

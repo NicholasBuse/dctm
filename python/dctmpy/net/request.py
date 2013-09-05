@@ -12,39 +12,36 @@ HEADER_SIZE = 4
 
 
 class Request(object):
-    def __init__(self, **kwargs):
-        self.__version = kwargs.pop('version', None)
-        self.__release = kwargs.pop('release', None)
-        self.__inumber = kwargs.pop('inumber', None)
-        self.__sequence = kwargs.pop('sequence', None)
-        self.__socket = kwargs.pop('socket', None)
-        self.__immediate = kwargs.pop('immediate', False)
-        self.__type = kwargs.pop('type', None)
+    attrs = ['version', 'release', 'inumber', 'sequence', 'socket', 'immediate', 'type']
 
-        if self.__version is None or self.__release is None or self.__inumber is None:
+    def __init__(self, **kwargs):
+        for attribute in Request.attrs:
+            self.__setattr__("__" + attribute, kwargs.pop(attribute, None))
+
+        if self.version is None or self.release is None or self.inumber is None:
             raise ProtocolException("Wrong protocol version info")
 
-        if self.__type is None:
+        if self.type is None:
             raise ProtocolException("Invalid request type")
 
         data = kwargs.pop('data', None)
 
         if data is None:
-            self.__data = None
+            self.data = None
         else:
-            self.__data = serializeData(data)
+            self.data = serializeData(data)
 
-        if self.__immediate:
+        if self.immediate:
             self.send()
 
     def send(self):
-        self.__socket.sendall(
+        self.socket.sendall(
             self.buildRequest()
         )
 
     def receive(self):
         messagePayload = array.array('B')
-        messagePayload.fromstring(self.__socket.recv(HEADER_SIZE))
+        messagePayload.fromstring(self.socket.recv(HEADER_SIZE))
         if len(messagePayload) == 0:
             raise ProtocolException("Unable to read header")
 
@@ -52,16 +49,16 @@ class Request(object):
         for i in range(0, HEADER_SIZE):
             messageLength = messageLength << 8 | messagePayload[i]
 
-        headerPayload = stringToIntegerArray(self.__socket.recv(2))
+        headerPayload = stringToIntegerArray(self.socket.recv(2))
         if headerPayload[0] != PROTOCOL_VERSION:
             raise ProtocolException("Wrong protocol 0x%X expected 0x%X" % (headerPayload[0], PROTOCOL_VERSION))
         headerLength = headerPayload[1]
 
-        header = stringToIntegerArray(self.__socket.recv(headerLength))
+        header = stringToIntegerArray(self.socket.recv(headerLength))
 
         sequence = readInteger(header)
-        if sequence != self.__sequence:
-            raise ProtocolException("Invalid sequence %d expected %d" % (sequence, self.__sequence))
+        if sequence != self.sequence:
+            raise ProtocolException("Invalid sequence %d expected %d" % (sequence, self.sequence))
 
         status = readInteger(header)
         if status != 0:
@@ -70,7 +67,7 @@ class Request(object):
         bytesToRead = messageLength - len(headerPayload) - headerLength
         message = array.array('B')
         while True:
-            chunk = stringToIntegerArray(self.__socket.recv(bytesToRead))
+            chunk = stringToIntegerArray(self.socket.recv(bytesToRead))
             message.extend(chunk)
             if len(chunk) == 0 or len(message) == bytesToRead:
                 break
@@ -81,8 +78,8 @@ class Request(object):
 
     def buildRequest(self):
         data = self.buildHeader()
-        if self.__data is not None:
-            data.extend(self.__data)
+        if self.data is not None:
+            data.extend(self.data)
         length = len(data)
         data.insert(0, length & 0x000000ff)
         data.insert(0, (length >> 8) & 0x000000ff)
@@ -92,15 +89,20 @@ class Request(object):
 
     def buildHeader(self):
         header = array.array('B')
-        header.extend(serializeInteger(self.__sequence))
-        header.extend(serializeInteger(self.__type))
-        header.extend(serializeInteger(self.__version))
-        header.extend(serializeInteger(self.__release))
-        header.extend(serializeInteger(self.__inumber))
+        header.extend(serializeInteger(self.sequence))
+        header.extend(serializeInteger(self.type))
+        header.extend(serializeInteger(self.version))
+        header.extend(serializeInteger(self.release))
+        header.extend(serializeInteger(self.inumber))
         header.insert(0, len(header))
         header.insert(0, PROTOCOL_VERSION)
         return header
 
+    def __getattr__(self, name):
+        if name in Request.attrs:
+            return self.__getattribute__("__" + name)
+        else:
+            return AttributeError
 
 
 

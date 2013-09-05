@@ -18,30 +18,40 @@ NETWISE_INUMBER = 769
 
 
 class Docbase(Netwise):
-    def __init__(self, **kwargs):
-        self.__docbaseId = kwargs.pop("docbaseId", None)
-        self.__username = kwargs.pop("username", None)
-        self.__password = kwargs.pop("password", None)
-        self.__messages = None
-        self.__entryPoints = None
+    attrs = ['docbaseid', 'username', 'password', 'messages', 'entrypoints', 'serializationversion', 'iso8601time',
+             'session', 'serializationversionhint']
 
+    def __init__(self, **kwargs):
+        for attribute in Docbase.attrs:
+            self.__setattr__("__" + attribute, kwargs.pop(attribute, None))
         super(Docbase, self).__init__(**dict(kwargs, **{
             'version': NETWISE_VERSION,
             'release': NETWISE_RELEASE,
             'inumber': NETWISE_INUMBER,
         }))
 
-        self.__serializationVersion = 0
-        self.__iso8601Time = False
-        self.__session = NULL_ID
-
-        if self.__docbaseId is None:
+        if self.serializationversion is None:
+            self.serializationversion = 0
+        if self.iso8601time is None:
+            self.iso8601time = False
+        if self.session is None:
+            self.session = NULL_ID
+        if self.docbaseid is None:
             self.resolveDocbaseId()
+        if self.messages is None:
+            self.messages = []
+        if self.entrypoints is None:
+            self.entrypoints = {
+                'ENTRY_POINTS': 0,
+                'GET_ERRORS': 558,
+            }
+        if self.serializationversionhint is None:
+            self.serializationversionhint = CLIENT_VERSION_ARRAY[3]
 
         self.connect()
-        self.getEntryPoints()
+        self.fetchEntryPoints()
 
-        if self.__password is not None and self.__username is not None:
+        if self.password is not None and self.username is not None:
             self.authenticate()
 
     def resolveDocbaseId(self):
@@ -61,28 +71,28 @@ class Docbase(Netwise):
         reason = response.next()
         m = re.search('Wrong docbase id: \(-1\) expecting: \((\d+)\)', reason)
         if m is not None:
-            self.__docbaseId = int(m.group(1))
+            self.docbaseid = int(m.group(1))
         self.disconnect()
 
     def disconnect(self):
         try:
-            if self.__session is not None and self.__session != NULL_ID:
+            if self.session is not None and self.session != NULL_ID:
                 self.request(
                     type=RPC_CLOSE_SESSION,
                     data=[
-                        self.__session,
+                        self.session,
                     ],
                     immediate=True,
                 ).receive()
             super(Docbase, self).disconnect()
         finally:
-            self.__session = None
+            self.session = None
 
     def connect(self):
         response = self.request(
             type=RPC_NEW_SESSION_BY_ADDR,
             data=[
-                self.__docbaseId,
+                self.docbaseid,
                 EMPTY_STRING,
                 CLIENT_VERSION_STRING,
                 EMPTY_STRING,
@@ -96,34 +106,34 @@ class Docbase(Netwise):
         serverVersion = response.next()
         if serverVersion[7] == DM_CLIENT_SERIALIZATION_VERSION_HINT:
             if DM_CLIENT_SERIALIZATION_VERSION_HINT > 0:
-                self.__serializationVersion = 1
+                self.serializationversion = 1
             else:
-                self.__serializationVersion = 0
+                self.serializationversion = 0
         else:
-            self.__serializationVersion = 0
+            self.serializationversion = 0
 
-        if self.__serializationVersion == 0:
-            self.__iso8601Time = False
+        if self.serializationversion == 0:
+            self.iso8601time = False
         else:
             if serverVersion[9] & 0x01 == 1:
-                self.__iso8601Time = True
+                self.iso8601time = True
             else:
-                self.__iso8601Time = False
+                self.iso8601time = False
 
         session = response.next()
 
         if session == NULL_ID:
             raise RuntimeError(reason)
 
-        self.__session = session
+        self.session = session
 
     def sendRpc(self, **kwargs):
         rpcId = kwargs.pop('rpcid', None)
         data = kwargs.pop('data', [])
         gettingErrors = kwargs.pop('gettingErrors', False)
 
-        if self.__session is not None:
-            data.insert(0, self.__session)
+        if self.session is not None:
+            data.insert(0, self.session)
 
         (valid, odata, collection, persistent, maybemore, count) = (None, None, None, None, None, None)
 
@@ -136,6 +146,7 @@ class Docbase(Netwise):
             collection = int(response.next())
             persistent = int(response.next()) > 0
             maybemore = int(response.next()) > 0
+            valid = collection > 0
         elif rpcId == RPC_CLOSE_COLLECTION:
             pass
         elif rpcId == RPC_GET_NEXT_PIECE:
@@ -150,20 +161,20 @@ class Docbase(Netwise):
         if (odata & 0x02 != 0) and not gettingErrors:
             self.getMessages(gettingErrors=True)
 
-        if valid is not None and not valid and (odata & 0x02 != 0) and len(self.__messages) > 0:
+        if valid is not None and not valid and (odata & 0x02 != 0) and len(self.messages) > 0:
             reason = ""
-            while len(self.__messages) > 0:
-                message = self.__messages.pop(0)
-                if message.get("SEVERITY") != 3:
+            while len(self.messages) > 0:
+                message = self.messages.pop(0)
+                if message.SEVERITY != 3:
                     continue
                 if len(reason) > 0:
                     reason += ", "
-                reason += "%s:%s" % (message.get("NAME"), message.get("1"))
+                reason += "%s: %s" % (message.NAME, message.get("1"))
             if len(reason) > 0:
                 raise RuntimeError(reason)
 
         if odata == 0x10 or (odata == 0x01 and rpcId == RPC_GET_NEXT_PIECE):
-            message += self.sendRpc(RPC_GET_NEXT_PIECE).data()
+            message += self.sendRpc(RPC_GET_NEXT_PIECE).data
 
         return Response(data=message, odata=odata, persistent=persistent, collection=collection, maybemore=maybemore,
                         recordcount=count)
@@ -178,39 +189,33 @@ class Docbase(Netwise):
 
         response = self.sendRpc(rpcid=rpcid, data=[self.resolveMethod(method), objectId, request],
                                 gettingErrors=gettingErrors)
-        data = response.data()
-        if response.persistent() and clazz == Collection:
+        data = response.data
+        if response.persistent and clazz == Collection:
             clazz = PersistentCollection
 
         result = clazz(session=self, rawdata=data)
-        if response.collection() is not None:
-            result.collection(response.collection())
-            result.batchsize(DEFAULT_BATCH_SIZE)
+        if response.collection is not None:
+            result.collection = response.collection
+            result.batchsize = DEFAULT_BATCH_SIZE
 
         return result
 
     def getMessages(self, gettingErrors=False):
-        self.messages(
-            self.applyForCollection(method="GET_ERRORS", request=requestGetErrors(self),
-                                    gettingErrors=gettingErrors).readAll())
-
-    def messages(self, value=None):
-        if value is not None:
-            self.__messages = value
-        return self.__messages
+        self.messages = self.applyForCollection(method="GET_ERRORS", request=requestGetErrors(self),
+                                                gettingErrors=gettingErrors).readAll()
 
     def authenticate(self, username=None, password=None):
         if username is not None and password is not None:
-            self.__username = username
-            self.__password = password
-        if self.__username is None:
+            self.username = username
+            self.password = password
+        if self.username is None:
             raise RuntimeError("Empty username")
-        if self.__password is None:
+        if self.password is None:
             raise RuntimeError("Empty password")
 
         result = self.applyForObject(method="AUTHENTICATE_USER", clazz=TypedObject, objectId=NULL_ID,
-                                     request=requestAuthenticate(self, self.__username,
-                                                                 self.obfuscate(self.__password)))
+                                     request=requestAuthenticate(self, self.username,
+                                                                 self.obfuscate(self.password)))
         if result.RETURN_VALUE != 1:
             raise RuntimeError("Unable to authenticate")
 
@@ -220,21 +225,9 @@ class Docbase(Netwise):
     def closeCollection(self, collection):
         self.sendRpc(rpcid=RPC_CLOSE_COLLECTION, data=[collection])
 
-    def entryPoints(self, value=None):
-        if value is not None:
-            self.__entryPoints = value
-        if self.__entryPoints is None:
-            return {
-                'ENTRY_POINTS': 0,
-                'GET_ERRORS': 558,
-            }
-        return self.__entryPoints
-
-    def getEntryPoints(self):
-        self.entryPoints(
-            self.applyForObject(method="ENTRY_POINTS", clazz=EntryPoints, objectId=NULL_ID,
-                                request=requestEntryPoints(self)).map()
-        )
+    def fetchEntryPoints(self):
+        self.entrypoints = self.applyForObject(method="ENTRY_POINTS", clazz=EntryPoints, objectId=NULL_ID,
+                                               request=requestEntryPoints(self)).map()
 
     def getServerConfig(self):
         return self.applyForObject(method="GET_SERVER_CONFIG", clazz=Persistent, objectId=NULL_ID,
@@ -258,12 +251,12 @@ class Docbase(Netwise):
         typeObj = getTypeFormCache(typename)
         if typeObj is not None:
             return typeObj
-        if "FETCH_TYPE" in self.entryPoints():
+        if "FETCH_TYPE" in self.entrypoints:
             self.applyForString(method="FETCH_TYPE", clazz=TypeObject, objectId=NULL_ID,
                                 request=requestFetchType(self, typename, vstamp))
         else:
             response = self.sendRpc(rpcid=RPC_FETCH_TYPE, data=[typename])
-            TypeObject(session=self, rawdata=response.data())
+            TypeObject(session=self, rawdata=response.data)
         return getTypeFormCache(typename)
 
     def query(self, query, forUpdate=False, batchHint=DEFAULT_BATCH_SIZE, bofDQL=False):
@@ -271,7 +264,7 @@ class Docbase(Netwise):
             collection = self.applyForCollection(method="EXEC", clazz=Collection, objectId=NULL_ID,
                                                  request=requestQuery(self, query, forUpdate, batchHint, bofDQL))
         except Exception, e:
-            raise RuntimeError("Error occured while executing query: %s\nError was: %s" % (query, str(e)))
+            raise RuntimeError("Error occurred while executing query: %s\nError was: %s" % (query, str(e)))
         return collection
 
     def obfuscate(self, password):
@@ -304,70 +297,26 @@ class Docbase(Netwise):
         return self.apply(**dict(kwargs, **{'rpcid': RPC_APPLY_FOR_STRING}))
 
     def resolveMethod(self, methodName):
-        if methodName not in self.entryPoints():
+        if methodName not in self.entrypoints:
             raise RuntimeError("Unknown method: %s" % methodName)
-        return self.entryPoints()[methodName]
+        return self.entrypoints[methodName]
 
-    def docbaseId(self, value=None):
-        if value is not None:
-            self.__docbaseId = value
-        return self.__docbaseId
-
-    def session(self, value=None):
-        if value is not None:
-            self.__session = value
-        return self.__session
-
-    def serializationVersion(self, value=None):
-        if value is not None:
-            self.__serializationVersion = value
-        return self.__serializationVersion
-
-    def iso8601Time(self, value=None):
-        if value is not None:
-            self.__iso8601Time = value
-        return self.__iso8601Time
-
-    def serializationVersionHint(self):
-        return CLIENT_VERSION_ARRAY[3]
+    def __getattr__(self, name):
+        if name in Docbase.attrs:
+            return self.__getattribute__("__" + name)
+        else:
+            return super(Docbase, self).__getattr__(name)
 
 
 class Response(object):
+    attrs = ['data', 'odata', 'persistent', 'collection', 'recordsinbatch', 'maybemore']
+
     def __init__(self, **kwargs):
-        self.__data = kwargs.pop('data', None)
-        self.__odata = kwargs.pop('odata', None)
-        self.__persistent = kwargs.pop('persistent', None)
-        self.__collection = kwargs.pop('collection', None)
-        self.__recordsInBatch = kwargs.get('recordsinbacth', None)
-        self.__mayBeMore = kwargs.get('maybemore', None)
+        for attribute in Response.attrs:
+            self.__setattr__("__" + attribute, kwargs.pop(attribute, None))
 
-    def data(self, value=None):
-        if value is not None:
-            self.__data = value
-        return self.__data
-
-    def odata(self, value=None):
-        if value is not None:
-            self.__odata = value
-        return self.__odata
-
-    def persistent(self, value=None):
-        if value is not None:
-            self.__persistent = value
-        return self.__persistent
-
-    def collection(self, value=None):
-        if value is not None:
-            self.__collection = value
-        return self.__collection
-
-    def mayBeMore(self, value=None):
-        if value is not None:
-            self.__mayBeMore = value
-        return self.__mayBeMore
-
-    def recordsInBatch(self, value=None):
-        if value is not None:
-            self.__recordsInBatch = value
-        return self.__recordsInBatch
-
+    def __getattr__(self, name):
+        if name in Response.attrs:
+            return self.__getattribute__("__" + name)
+        else:
+            return AttributeError

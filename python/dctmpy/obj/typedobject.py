@@ -8,54 +8,47 @@ from dctmpy import *
 
 
 class TypedObject(object):
+    attrs = ['session', 'type', 'rawdata', 'd6serialization', 'serializationversion', 'iso8601time']
+
     def __init__(self, **kwargs):
-        self.__session = kwargs.pop('session', None)
-        self.__serializationVersion = kwargs.pop('serializationVersion', None)
-        self.__type = kwargs.pop('type', None)
-        self.__rawdata = kwargs.pop('rawdata', None)
+        for attribute in TypedObject.attrs:
+            self.__setattr__("__" + attribute, kwargs.pop(attribute, None))
         self.__attrs = {}
         self.__hasExtendedAttrs = False
 
-        if self.__serializationVersion is None:
-            self.__serializationVersion = self.__session.serializationVersion()
+        if self.d6serialization is None:
+            if self.serializationversion is None:
+                self.serializationversion = self.session.serializationversion
+            if self.serializationversion == 0:
+                self.d6serialization = False
+            else:
+                self.d6serialization = True
 
-        if self.__serializationVersion == 0:
-            self.__isD6Serialisation = False
-        else:
-            self.__isD6Serialisation = True
+        if self.iso8601time is None:
+            if self.d6serialization:
+                self.iso8601time = self.session.iso8601Time
+            else:
+                self.iso8601time = False
 
-        if not isEmpty(self.__rawdata):
+        if not isEmpty(self.rawdata):
             self.deserialize()
 
-    def isD6Serialization(self, value=None):
-        if value is not None:
-            self.__isD6Serialisation = value
-        return self.__isD6Serialisation
-
-    def iso8601Time(self):
-        if self.isD6Serialization():
-            return self.__session.iso8601Time()
-        return False
-
-    def hasExtendedAttrs(self):
-        return self.__hasExtendedAttrs
-
     def deserialize(self, message=None):
-        if isEmpty(message) and isEmpty(self.__rawdata):
+        if isEmpty(message) and isEmpty(self.rawdata):
             raise ParserException("Empty data")
         elif not isEmpty(message):
-            self.__rawdata = message
+            self.rawdata = message
 
         self.readHeader()
 
-        if self.__type is None and self.shouldDeserializeType():
-            self.__type = self.deserializeType()
+        if self.type is None and self.shouldDeserializeType():
+            self.type = self.deserializeType()
 
         if self.shouldDeserializeObject():
             self.deserializeObject()
 
     def readHeader(self):
-        if self.isD6Serialization():
+        if self.d6serialization:
             self.readInt()
 
     def deserializeType(self):
@@ -65,7 +58,7 @@ class TypedObject(object):
 
         typeInfo = self.deserializeTypeInfo()
         for i in range(0, self.readInt()):
-            typeInfo.add(self.deserializeAttrInfo())
+            typeInfo.append(self.deserializeAttrInfo())
 
         return typeInfo
 
@@ -79,12 +72,12 @@ class TypedObject(object):
         if typename is None or len(typename) == 0:
             raise ParserException("Wrong type name")
 
-        if self.isD6Serialization():
+        if self.d6serialization:
             self.readInt()
             self.readInt()
             self.readInt()
 
-        if self.__type is None or typename != self.__type.getName():
+        if self.type is None or typename != self.type.name:
             raise ParserException("No type info for %s" % typename)
 
         for i in range(0, self.readInt()):
@@ -94,15 +87,15 @@ class TypedObject(object):
 
     def deserializeAttr(self, index):
         position = {True: lambda: pseudoBase64ToInt(self.nextString(BASE64_PATTERN)),
-                    False: lambda: index}[self.isD6Serialization()]()
+                    False: lambda: index}[self.d6serialization]()
 
         if position is None:
             position = index
 
-        repeating = self.__type.get(position).repeating()
-        attrType = self.__type.get(position).type()
-        attrName = self.__type.get(position).name()
-        attrLength = self.__type.get(position).length()
+        repeating = self.type.get(position).repeating
+        attrType = self.type.get(position).type
+        attrName = self.type.get(position).name
+        attrLength = self.type.get(position).length
 
         if attrType is None:
             raise ParserException("Unknown type")
@@ -125,7 +118,7 @@ class TypedObject(object):
         }))
 
     def add(self, attrValue):
-        self.__attrs[attrValue.getName()] = attrValue
+        self.__attrs[attrValue.name] = attrValue
 
     def deserializeExtendedAttr(self):
         attrCount = self.readInt()
@@ -174,51 +167,51 @@ class TypedObject(object):
             'name': self.nextString(ATTRIBUTE_PATTERN),
             'id': self.nextString(ATTRIBUTE_PATTERN),
             'vstamp': {True: lambda: self.readInt(),
-                       False: lambda: None}[self.isD6Serialization()](),
+                       False: lambda: None}[self.d6serialization](),
             'version': {True: lambda: self.readInt(),
-                        False: lambda: None}[self.isD6Serialization()](),
+                        False: lambda: None}[self.d6serialization](),
             'cache': {True: lambda: self.readInt(),
-                      False: lambda: None}[self.isD6Serialization()](),
+                      False: lambda: None}[self.d6serialization](),
             'super': self.nextString(ATTRIBUTE_PATTERN),
             'sharedparent': {True: lambda: self.nextString(ATTRIBUTE_PATTERN),
-                             False: lambda: None}[self.isD6Serialization()](),
+                             False: lambda: None}[self.d6serialization](),
             'aspectname': {True: lambda: self.nextString(ATTRIBUTE_PATTERN),
-                           False: lambda: None}[self.isD6Serialization()](),
+                           False: lambda: None}[self.d6serialization](),
             'aspectshareflag': {True: lambda: self.readBoolean(),
-                                False: lambda: None}[self.isD6Serialization()](),
-            'isD6Serialization': self.isD6Serialization(),
+                                False: lambda: None}[self.d6serialization](),
+            'd6serialization': self.d6serialization,
         })
 
     def deserializeAttrInfo(self):
         return AttrInfo(**{
             'position': {True: lambda: pseudoBase64ToInt(self.nextString(BASE64_PATTERN)),
-                         False: lambda: None}[self.isD6Serialization()](),
+                         False: lambda: None}[self.d6serialization](),
             'name': self.nextString(ATTRIBUTE_PATTERN),
             'type': self.nextString(TYPE_PATTERN),
             'repeating': REPEATING == self.nextString(),
             'length': self.readInt(),
             'restriction': {True: lambda: self.readInt(),
-                            False: lambda: None}[self.isD6Serialization()](),
+                            False: lambda: None}[self.d6serialization](),
         })
 
     def serialize(self):
         result = ""
-        if self.isD6Serialization():
-            result += "%d\n" % self.__session.serializationVersionHint()
+        if self.d6serialization:
+            result += "%d\n" % self.session.serializationVersionHint()
         result += "OBJ NULL 0 "
-        if self.isD6Serialization():
+        if self.d6serialization:
             result += "0 0\n0\n"
         result += "%d\n" % len(self.__attrs)
         for attrValue in self.__attrs.values():
             result += "%s %s %s %d\n" % (
-                attrValue.getName(), attrValue.getType(), [SINGLE, REPEATING][attrValue.isRepeating()],
-                attrValue.getLength())
-            if attrValue.isRepeating():
-                result += "%d\n" % len(attrValue.getValues())
-            for value in attrValue.getValues():
-                if STRING == attrValue.getType():
+                attrValue.name, attrValue.type, [SINGLE, REPEATING][attrValue.repeating],
+                attrValue.length)
+            if attrValue.repeating:
+                result += "%d\n" % len(attrValue.values)
+            for value in attrValue.values:
+                if STRING == attrValue.type:
                     result += "A %d %s\n" % (len(value), value)
-                elif BOOL == attrValue.getType():
+                elif BOOL == attrValue.type:
                     result += "%s\n" % ["F", "T"][value]
                 else:
                     result += "%s\n" % value
@@ -231,17 +224,17 @@ class TypedObject(object):
         return True
 
     def read(self, length):
-        data = self.__rawdata
-        self.__rawdata = data[length:]
+        data = self.rawdata
+        self.rawdata = data[length:]
         return data[:length]
 
     def nextToken(self, separator=DEFAULT_SEPARATOR):
-        self.__rawdata = re.sub("^%s" % separator, "", self.__rawdata)
-        m = re.search(separator, self.__rawdata)
+        self.rawdata = re.sub("^%s" % separator, "", self.rawdata)
+        m = re.search(separator, self.rawdata)
         if m is not None:
             return self.read(m.start(0))
         else:
-            return self.read(len(self.__rawdata))
+            return self.read(len(self.rawdata))
 
     def nextString(self, pattern=None, separator=DEFAULT_SEPARATOR):
         value = self.nextToken(separator)
@@ -263,38 +256,31 @@ class TypedObject(object):
             timestr = timestr[1:]
         if timestr.startswith("xxx "):
             timestr = timestr[4:]
-        return parseTime(timestr, self.iso8601Time())
+        return parseTime(timestr, self.iso8601time)
 
     def readBoolean(self):
         return bool(self.nextString(BOOLEAN_PATTERN))
 
-    def rawdata(self, value=None):
-        if value is not None:
-            self.__rawdata = value
-        return self.__rawdata
-
     def getAttrs(self):
         return self.__attrs
 
-    def session(self, value=None):
-        if value is not None:
-            self.__session = value
-        return self.__session
-
-    def type(self, value=None):
-        if value is not None:
-            self.__type = value
-        return self.__type
+    def get(self, attrName):
+        if attrName in self.__attrs:
+            attrValue = self.__attrs[attrName]
+            if attrValue.repeating:
+                return attrValue.values
+            else:
+                if len(attrValue.values) == 0:
+                    return None
+                return attrValue.values[0]
+        else:
+            raise RuntimeError("No attribute %s" % attrName)
 
     def __getattr__(self, name):
         if name in self.__attrs:
-            attrValue = self.__attrs[name]
-            if attrValue.isRepeating():
-                return attrValue.getValues()
-            else:
-                if len(attrValue.getValues()) == 0:
-                    return None
-                return attrValue.getValues()[0]
+            return self.get(name)
+        elif name in TypedObject.attrs:
+            return self.__getattribute__("__" + name)
         else:
             raise AttributeError
 

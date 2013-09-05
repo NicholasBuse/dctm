@@ -11,7 +11,7 @@ NETWISE_VERSION = 1
 NETWISE_RELEASE = 0
 NETWISE_INUMBER = 1094
 
-version = "0.0.1 perl"
+version = "0.0.1 python"
 handle = "localhost"
 
 

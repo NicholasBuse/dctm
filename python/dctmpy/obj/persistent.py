@@ -15,9 +15,9 @@ class Persistent(TypedObject):
         typeName = self.nextString(ATTRIBUTE_PATTERN)
         self.nextString(ATTRIBUTE_PATTERN)
         vstamp = 0
-        if self.isD6Serialization():
+        if self.d6serialization:
             vstamp = self.readInt()
-        return self.session().fetchType(typeName, vstamp)
+        return self.session.fetchType(typeName, vstamp)
 
     def deserializeObject(self):
         return super(Persistent, self).deserializeObject()
