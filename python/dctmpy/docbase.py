@@ -201,8 +201,8 @@ class Docbase(Netwise):
         return result
 
     def getMessages(self, gettingErrors=False):
-        self.messages = self.applyForCollection(method="GET_ERRORS", request=requestGetErrors(self),
-                                                gettingErrors=gettingErrors).readAll()
+        self.messages = [x for x in self.applyForCollection(method="GET_ERRORS", request=requestGetErrors(self),
+                                                            gettingErrors=gettingErrors)]
 
     def authenticate(self, username=None, password=None):
         if username is not None and password is not None:

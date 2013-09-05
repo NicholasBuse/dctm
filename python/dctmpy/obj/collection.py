@@ -43,16 +43,23 @@ class Collection(TypedObject):
         self.close()
         return None
 
-    def readAll(self):
-        result = []
-        r = self.nextRecord()
-        while True:
-            if r is None:
-                break
-            result.append(r)
-            r = self.nextRecord()
-        self.close()
-        return result
+    def __iter__(self):
+        class iterator(object):
+            def __init__(self, obj):
+                self.obj = obj
+                self.index = -1
+
+            def __iter__(self):
+                return self
+
+            def next(self):
+                r = self.obj.nextRecord()
+                if r is None:
+                    raise StopIteration
+                else:
+                    return r
+
+        return iterator(self)
 
     def __getattr__(self, name):
         if name in Collection.attrs:
