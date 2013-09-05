@@ -165,11 +165,11 @@ class Docbase(Netwise):
             reason = ""
             while len(self.messages) > 0:
                 message = self.messages.pop(0)
-                if message.SEVERITY != 3:
+                if message['SEVERITY'] != 3:
                     continue
                 if len(reason) > 0:
                     reason += ", "
-                reason += "%s: %s" % (message.NAME, message.get("1"))
+                reason += "%s: %s" % (message['NAME'], message['1'])
             if len(reason) > 0:
                 raise RuntimeError(reason)
 
@@ -264,7 +264,7 @@ class Docbase(Netwise):
             collection = self.applyForCollection(method="EXEC", clazz=Collection, objectId=NULL_ID,
                                                  request=requestQuery(self, query, forUpdate, batchHint, bofDQL))
         except Exception, e:
-            raise RuntimeError("Error occurred while executing query: %s\nError was: %s" % (query, str(e)))
+            raise RuntimeError("Error occurred while executing query: %s" % query, e)
         return collection
 
     def obfuscate(self, password):
