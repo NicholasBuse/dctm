@@ -74,12 +74,16 @@ def serializeIntegerArray(intarray):
 
 
 def serializeValue(value):
-    return {
-        type(""): lambda x: serializeString(x),
-        type(0): lambda x: serializeInteger(x),
-        type([]): lambda x: serializeIntegerArray(x),
-        type(None): lambda x: serializeString("")
-    }[type(value)](value)
+    if isinstance(value, str):
+        return serializeString(value)
+    elif isinstance(value, int):
+        return serializeInteger(value)
+    elif isinstance(value, list):
+        return serializeIntegerArray(value)
+    elif value is None:
+        return serializeString("")
+    else:
+        raise TypeError("Invalid argument type")
 
 
 def serializeData(data=None):

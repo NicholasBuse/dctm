@@ -216,7 +216,7 @@ class Docbase(Netwise):
         result = self.applyForObject(method="AUTHENTICATE_USER", clazz=TypedObject, objectId=NULL_ID,
                                      request=requestAuthenticate(self, self.username,
                                                                  self.obfuscate(self.password)))
-        if result.RETURN_VALUE != 1:
+        if result['RETURN_VALUE'] != 1:
             raise RuntimeError("Unable to authenticate")
 
     def nextBatch(self, collection, batchHint=DEFAULT_BATCH_SIZE):
@@ -244,7 +244,7 @@ class Docbase(Netwise):
         collection = self.query("select r_object_id from %s" % qualification)
         record = collection.nextRecord()
         if record is not None:
-            return self.fetchObject(record.r_object_id)
+            return self.fetchObject(record['r_object_id'])
         return None
 
     def fetchType(self, typename, vstamp):

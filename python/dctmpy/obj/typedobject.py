@@ -261,27 +261,59 @@ class TypedObject(object):
     def readBoolean(self):
         return bool(self.nextString(BOOLEAN_PATTERN))
 
-    def getAttrs(self):
-        return self.__attrs
-
-    def get(self, attrName):
+    def getAttr(self, attrName):
         if attrName in self.__attrs:
-            attrValue = self.__attrs[attrName]
-            if attrValue.repeating:
-                return attrValue.values
-            else:
-                if len(attrValue.values) == 0:
-                    return None
-                return attrValue.values[0]
+            return self.__attrs[attrName]
         else:
             raise RuntimeError("No attribute %s" % attrName)
 
     def __getattr__(self, name):
         if name in self.__attrs:
-            return self.get(name)
+            return self.__attrs[name]
         elif name in TypedObject.attrs:
             return self.__getattribute__("__" + name)
         else:
             raise AttributeError
 
+    def __len__(self):
+        return len(self.__attrs)
 
+    def __contains__(self, key):
+        return key in self.__attrs
+
+    def __getitem__(self, key):
+        if key in self.__attrs:
+            attrValue = self.__attrs[key]
+            if attrValue.repeating:
+                return attrValue.values
+            else:
+                return attrValue[0]
+        else:
+            raise KeyError
+
+    def __setitem__(self, key, value):
+        if key in self.__attrs:
+            attrValue = self.__attrs[key]
+            if attrValue.repeating:
+                if value is None:
+                    attrValue.values = []
+                elif isinstance(value, list):
+                    attrValue.values = value
+                else:
+                    attrValue.values = [value]
+            else:
+                if value is None:
+                    attrValue.values = []
+                elif isinstance(value, list):
+                    if len(value) > 1:
+                        raise RuntimeError("Single attribute %s does not accept arrays" % key)
+                    elif len(value) == 0:
+                        attrValue.values = []
+                    else:
+                        val = value[0]
+                        if val is None:
+                            attrValue.values = []
+                        else:
+                            attrValue.values = [val]
+        else:
+            raise KeyError

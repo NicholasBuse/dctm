@@ -284,19 +284,19 @@ def integerArrayToString(data):
 def isEmpty(value):
     if value is None:
         return True
-    if type("") == type(value):
+    if isinstance(value, str):
         if len(value) == 0:
             return True
         elif value.isspace():
             return True
         else:
             return False
-    if type([]) == type(value):
+    if isinstance(value, list):
         if len(value) == 0:
             return True
         else:
             return False
-    if type({}) == type(value):
+    if isinstance(value, dict):
         if len(value) == 0:
             return True
         else:
@@ -425,7 +425,7 @@ class AttrValue(object):
             self.__setattr__("__" + attribute, kwargs.pop(attribute, None))
         if self.values is None:
             self.values = []
-        if type([]) != type(self.values):
+        if not isinstance(self.values, list):
             self.values = [self.values]
         if self.repeating is None:
             self.repeating = False
@@ -437,6 +437,50 @@ class AttrValue(object):
             return self.__getattribute__("__" + name)
         else:
             raise AttributeError
+
+    def __len__(self):
+        if self.repeating:
+            return len(self.values)
+        else:
+            return 1
+
+    def __getitem__(self, key):
+        if isinstance(key, slice):
+            return [self[x] for x in xrange(*key.indices(len(self)))]
+        elif isinstance(key, int):
+            if self.repeating:
+                if key > len(self.values):
+                    raise KeyError
+                else:
+                    return self.values[key]
+            else:
+                if key > 0:
+                    raise KeyError
+                else:
+                    if len(self.values) == 0:
+                        return None
+                    else:
+                        return self.values[0]
+        else:
+            raise TypeError("Invalid argument type")
+
+    def __iter__(self):
+        class iterator(object):
+            def __init__(self, obj):
+                self.obj = obj
+                self.index = -1
+
+            def __iter__(self):
+                return self
+
+            def next(self):
+                if self.index < len(self.obj):
+                    self.index += 1
+                    return self.obj[self.index]
+                else:
+                    raise StopIteration
+
+        return iterator(self)
 
 
 class TypeInfo(object):

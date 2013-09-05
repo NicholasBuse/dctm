@@ -16,10 +16,10 @@ class EntryPoints(TypedObject):
 
     def map(self):
         if self.__methods is None:
-            if len(self.getAttrs()) == 0:
+            if len(self) == 0:
                 return {}
-            names = self.getAttrs()['name'].values
-            poss = self.getAttrs()['pos'].values
+            names = self['name']
+            poss = self['pos']
             self.__methods = dict((names[i], poss[i]) for i in range(0, len(names)))
         return self.__methods
 

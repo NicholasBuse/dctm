@@ -66,7 +66,7 @@ class DocbaseMap(DocbrokerObject):
         super(DocbrokerObject, self).add(attrValue)
 
     def getRecords(self):
-        if 'r_docbase_name' in self.getAttrs():
+        if 'r_docbase_name' in self:
             return [self.getRecord(index) for index in range(0, len(self.r_docbase_name))]
         return []
 
