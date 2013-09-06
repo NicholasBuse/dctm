@@ -86,9 +86,7 @@ class TypedObject(object):
         self.deserializeExtendedAttr()
 
     def deserializeAttr(self, index):
-        position = {True: lambda: pseudoBase64ToInt(self.nextString(BASE64_PATTERN)),
-                    False: lambda: index}[self.d6serialization]()
-
+        position = self.ifd6(self.readBase64Int)
         if position is None:
             position = index
 
@@ -166,33 +164,30 @@ class TypedObject(object):
         return TypeInfo(**{
             'name': self.nextString(ATTRIBUTE_PATTERN),
             'id': self.nextString(ATTRIBUTE_PATTERN),
-            'vstamp': {True: lambda: self.readInt(),
-                       False: lambda: None}[self.d6serialization](),
-            'version': {True: lambda: self.readInt(),
-                        False: lambda: None}[self.d6serialization](),
-            'cache': {True: lambda: self.readInt(),
-                      False: lambda: None}[self.d6serialization](),
+            'vstamp': self.ifd6(self.readInt),
+            'version': self.ifd6(self.readInt),
+            'cache': self.ifd6(self.readInt),
             'super': self.nextString(ATTRIBUTE_PATTERN),
-            'sharedparent': {True: lambda: self.nextString(ATTRIBUTE_PATTERN),
-                             False: lambda: None}[self.d6serialization](),
-            'aspectname': {True: lambda: self.nextString(ATTRIBUTE_PATTERN),
-                           False: lambda: None}[self.d6serialization](),
-            'aspectshareflag': {True: lambda: self.readBoolean(),
-                                False: lambda: None}[self.d6serialization](),
+            'sharedparent': self.ifd6(self.nextString, None, ATTRIBUTE_PATTERN),
+            'aspectname': self.ifd6(self.nextString, None, ATTRIBUTE_PATTERN),
+            'aspectshareflag': self.ifd6(self.readBoolean),
             'd6serialization': self.d6serialization,
         })
 
     def deserializeAttrInfo(self):
         return AttrInfo(**{
-            'position': {True: lambda: pseudoBase64ToInt(self.nextString(BASE64_PATTERN)),
-                         False: lambda: None}[self.d6serialization](),
+            'position': self.ifd6(self.readBase64Int),
             'name': self.nextString(ATTRIBUTE_PATTERN),
             'type': self.nextString(TYPE_PATTERN),
             'repeating': REPEATING == self.nextString(),
             'length': self.readInt(),
-            'restriction': {True: lambda: self.readInt(),
-                            False: lambda: None}[self.d6serialization](),
+            'restriction': self.ifd6(self.readInt),
         })
+
+    def ifd6(self, method, default=None, *args, **kwargs):
+        if self.d6serialization:
+            return method(*args, **kwargs)
+        return default
 
     def serialize(self):
         result = ""
@@ -245,6 +240,9 @@ class TypedObject(object):
 
     def readInt(self):
         return int(self.nextString(INTEGER_PATTERN))
+
+    def readBase64Int(self):
+        return pseudoBase64ToInt(self.nextString(BASE64_PATTERN))
 
     def readString(self):
         self.nextString(ENCODING_PATTERN)
