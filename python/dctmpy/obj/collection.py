@@ -74,7 +74,6 @@ class Collection(TypedObject):
         else:
             super(TypedObject, self).__setattr__(name, value)
 
-
     def close(self):
         try:
             if self.collection > 0:

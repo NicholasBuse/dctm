@@ -26,7 +26,7 @@ class TypedObject(object):
 
         if self.iso8601time is None:
             if self.d6serialization:
-                self.iso8601time = self.session.iso8601Time
+                self.iso8601time = self.session.iso8601time
             else:
                 self.iso8601time = False
 
@@ -197,7 +197,7 @@ class TypedObject(object):
     def serialize(self):
         result = ""
         if self.d6serialization:
-            result += "%d\n" % self.session.serializationVersionHint()
+            result += "%d\n" % self.session.serializationversionhint
         result += "OBJ NULL 0 "
         if self.d6serialization:
             result += "0 0\n0\n"
@@ -323,3 +323,6 @@ class TypedObject(object):
                             attrValue.values = [val]
         else:
             raise KeyError
+
+    def __iter__(self):
+        return iter(self.__attrs.keys())

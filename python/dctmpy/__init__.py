@@ -195,7 +195,7 @@ CLIENT_VERSION_STRING = "6.0.0.1 python"
 
 DM_CLIENT_CONNECT_PROTOCOL = 2
 DM_CLIENT_SESSION_RECORD_HINT = -1
-DM_CLIENT_SERIALIZATION_VERSION_HINT = 0
+DM_CLIENT_SERIALIZATION_VERSION_HINT = 1
 
 DM_CLIENT_USE_OBDATA = 1 << 0
 DM_CLIENT_USE_NEW_RPC = 1 << 1
@@ -528,7 +528,7 @@ class TypeInfo(object):
         if self.d6serialization:
             if attrInfo.position is not None:
                 self.__positions[attrInfo.position] = attrInfo
-            elif self.__name != "GeneratedType":
+            elif self.name != "GeneratedType":
                 raise RuntimeError("Empty position")
 
     def insert(self, index, attrInfo):
@@ -536,7 +536,7 @@ class TypeInfo(object):
         if self.d6serialization:
             if attrInfo.position is not None:
                 self.__positions[attrInfo.position] = attrInfo
-            elif self.__name != "GeneratedType":
+            elif self.name != "GeneratedType":
                 raise RuntimeError("Empty position")
 
     def get(self, index):

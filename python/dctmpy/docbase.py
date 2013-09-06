@@ -162,14 +162,11 @@ class Docbase(Netwise):
             self.getMessages(gettingErrors=True)
 
         if valid is not None and not valid and (odata & 0x02 != 0) and len(self.messages) > 0:
-            reason = ""
-            while len(self.messages) > 0:
-                message = self.messages.pop(0)
-                if message['SEVERITY'] != 3:
-                    continue
-                if len(reason) > 0:
-                    reason += ", "
-                reason += "%s: %s" % (message['NAME'], message['1'])
+            reason = ", ".join(
+                "%s: %s" % (message['NAME'], message['1']) for message in
+                ((lambda x: x.pop(0))(self.messages) for i in xrange(0, len(self.messages)))
+                if message['SEVERITY'] == 3
+            )
             if len(reason) > 0:
                 raise RuntimeError(reason)
 
@@ -274,10 +271,7 @@ class Docbase(Netwise):
         if self.isObfuscated(password):
             return password
         return "".join(
-            ["%02x" % x for x in [
-                [x ^ 0xB6, 0xB6][x == 0xB6] for x in [
-                    ord(x) for x in [x for x in password][::-1]]
-            ]]
+            "%02x" % [x ^ 0xB6, 0xB6][x == 0xB6] for x in (ord(x) for x in password[::-1])
         )
 
     def isObfuscated(self, password):
