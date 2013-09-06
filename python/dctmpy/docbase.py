@@ -23,7 +23,7 @@ class Docbase(Netwise):
 
     def __init__(self, **kwargs):
         for attribute in Docbase.attrs:
-            self.__setattr__("__" + attribute, kwargs.pop(attribute, None))
+            self.__setattr__(ATTRIBUTE_PREFIX + attribute, kwargs.pop(attribute, None))
         super(Docbase, self).__init__(**dict(kwargs, **{
             'version': NETWISE_VERSION,
             'release': NETWISE_RELEASE,
@@ -183,20 +183,21 @@ class Docbase(Netwise):
         request = kwargs.pop('request', None)
         rpcid = kwargs.pop('rpcid', None)
         method = kwargs.pop('method', None)
-        clazz = kwargs.pop('clazz', Collection)
+        cls = kwargs.pop('cls', Collection)
         objectId = kwargs.pop('objectId', NULL_ID)
         gettingErrors = kwargs.pop('gettingErrors', False)
 
         response = self.sendRpc(rpcid=rpcid, data=[self.resolveMethod(method), objectId, request],
                                 gettingErrors=gettingErrors)
         data = response.data
-        if response.persistent and clazz == Collection:
-            clazz = PersistentCollection
+        if response.persistent and cls == Collection:
+            cls = PersistentCollection
 
-        result = clazz(session=self, rawdata=data)
+        result = cls(session=self, rawdata=data)
         if response.collection is not None:
             result.collection = response.collection
             result.batchsize = DEFAULT_BATCH_SIZE
+            result.persistent = response.persistent
 
         return result
 
@@ -213,7 +214,7 @@ class Docbase(Netwise):
         if self.password is None:
             raise RuntimeError("Empty password")
 
-        result = self.applyForObject(method="AUTHENTICATE_USER", clazz=TypedObject, objectId=NULL_ID,
+        result = self.applyForObject(method="AUTHENTICATE_USER", cls=TypedObject, objectId=NULL_ID,
                                      request=requestAuthenticate(self, self.username,
                                                                  self.obfuscate(self.password)))
         if result['RETURN_VALUE'] != 1:
@@ -226,19 +227,21 @@ class Docbase(Netwise):
         self.sendRpc(rpcid=RPC_CLOSE_COLLECTION, data=[collection])
 
     def fetchEntryPoints(self):
-        self.entrypoints = self.applyForObject(method="ENTRY_POINTS", clazz=EntryPoints, objectId=NULL_ID,
-                                               request=requestEntryPoints(self)).map()
+        self.entrypoints = self.applyForObject(method="ENTRY_POINTS", cls=EntryPoints, objectId=NULL_ID,
+                                               request=requestEntryPoints(self)).methods()
+        for name in self.entrypoints:
+            self.addEntryPoint(name)
 
     def getServerConfig(self):
-        return self.applyForObject(method="GET_SERVER_CONFIG", clazz=Persistent, objectId=NULL_ID,
+        return self.applyForObject(method="GET_SERVER_CONFIG", cls=Persistent, objectId=NULL_ID,
                                    request=requestServerConfig(self))
 
     def getDocbaseConfig(self):
-        return self.applyForObject(method="GET_DOCBASE_CONFIG", clazz=Persistent, objectId=NULL_ID,
+        return self.applyForObject(method="GET_DOCBASE_CONFIG", cls=Persistent, objectId=NULL_ID,
                                    request=requestDocbaseConfig(self))
 
     def fetchObject(self, objectId):
-        return self.applyForObject(method="FETCH", clazz=Persistent, objectId=objectId)
+        return self.applyForObject(method="FETCH", cls=Persistent, objectId=objectId)
 
     def fetchByQualification(self, qualification):
         collection = self.query("select r_object_id from %s" % qualification)
@@ -252,7 +255,7 @@ class Docbase(Netwise):
         if typeObj is not None:
             return typeObj
         if "FETCH_TYPE" in self.entrypoints:
-            self.applyForString(method="FETCH_TYPE", clazz=TypeObject, objectId=NULL_ID,
+            self.applyForString(method="FETCH_TYPE", cls=TypeObject, objectId=NULL_ID,
                                 request=requestFetchType(self, typename, vstamp))
         else:
             response = self.sendRpc(rpcid=RPC_FETCH_TYPE, data=[typename])
@@ -261,7 +264,7 @@ class Docbase(Netwise):
 
     def query(self, query, forUpdate=False, batchHint=DEFAULT_BATCH_SIZE, bofDQL=False):
         try:
-            collection = self.applyForCollection(method="EXEC", clazz=Collection, objectId=NULL_ID,
+            collection = self.applyForCollection(method="EXEC", cls=Collection, objectId=NULL_ID,
                                                  request=requestQuery(self, query, forUpdate, batchHint, bofDQL))
         except Exception, e:
             raise RuntimeError("Error occurred while executing query: %s" % query, e)
@@ -286,12 +289,12 @@ class Docbase(Netwise):
         return True
 
     def applyForObject(self, **kwargs):
-        clazz = kwargs.pop('clazz', TypedObject)
-        return self.apply(**dict(kwargs, **{'clazz': clazz, 'rpcid': RPC_APPLY_FOR_OBJECT}))
+        cls = kwargs.pop('cls', TypedObject)
+        return self.apply(**dict(kwargs, **{'cls': cls, 'rpcid': RPC_APPLY_FOR_OBJECT}))
 
     def applyForCollection(self, **kwargs):
-        clazz = kwargs.pop('clazz', Collection)
-        return self.apply(**dict(kwargs, **{'clazz': clazz, 'rpcid': RPC_APPLY}))
+        cls = kwargs.pop('cls', Collection)
+        return self.apply(**dict(kwargs, **{'cls': cls, 'rpcid': RPC_APPLY}))
 
     def applyForString(self, **kwargs):
         return self.apply(**dict(kwargs, **{'rpcid': RPC_APPLY_FOR_STRING}))
@@ -303,9 +306,23 @@ class Docbase(Netwise):
 
     def __getattr__(self, name):
         if name in Docbase.attrs:
-            return self.__getattribute__("__" + name)
+            return self.__getattribute__(ATTRIBUTE_PREFIX + name)
         else:
             return super(Docbase, self).__getattr__(name)
+
+    def __setattr__(self, name, value):
+        if name in Docbase.attrs:
+            Docbase.__setattr__(self, ATTRIBUTE_PREFIX + name, value)
+        else:
+            super(Docbase, self).__setattr__(name, value)
+
+
+    def addEntryPoint(self, name):
+        def inner(self, **kwargs):
+            return self.applyForCollection(**dict(kwargs, **{'method': name}))
+
+        inner.__name__ = name
+        setattr(self.__class__, inner.__name__, inner)
 
 
 class Response(object):
@@ -313,10 +330,16 @@ class Response(object):
 
     def __init__(self, **kwargs):
         for attribute in Response.attrs:
-            self.__setattr__("__" + attribute, kwargs.pop(attribute, None))
+            self.__setattr__(ATTRIBUTE_PREFIX + attribute, kwargs.pop(attribute, None))
 
     def __getattr__(self, name):
         if name in Response.attrs:
-            return self.__getattribute__("__" + name)
+            return self.__getattribute__(ATTRIBUTE_PREFIX + name)
         else:
             return AttributeError
+
+    def __setattr__(self, name, value):
+        if name in Response.attrs:
+            Response.__setattr__(self, ATTRIBUTE_PREFIX + name, value)
+        else:
+            super(Response, self).__setattr__(name, value)

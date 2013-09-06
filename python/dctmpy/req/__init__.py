@@ -29,7 +29,7 @@ def requestServerMap(handle, version, docbase):
 
 
 def requestEntryPoints(session):
-    obj = EntryPoints(session=session)
+    obj = TypedObject(session=session)
     obj.add(AttrValue(name="LANGUAGE", type=INT, values=[getLocaleId()]))
     obj.add(AttrValue(name="CHARACTER_SET", type=INT, values=[getCharsetId()]))
     obj.add(AttrValue(name="PLATFORM_ENUM", type=INT, values=[getPlatformId()]))

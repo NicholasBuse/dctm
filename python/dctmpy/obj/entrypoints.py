@@ -14,19 +14,23 @@ class EntryPoints(TypedObject):
             **{'serializationversion': 0}
         ))
 
-    def map(self):
-        if self.__methods is None:
-            if len(self) == 0:
-                return {}
+    def deserialize(self, message=None):
+        super(EntryPoints, self).deserialize(message)
+        if len(self) > 0:
             names = self['name']
             poss = self['pos']
             self.__methods = dict((names[i], poss[i]) for i in range(0, len(names)))
+
+    def methods(self):
         return self.__methods
 
     def __getattr__(self, name):
-        if name in self.map():
-            return self.map()[name]
+        if self.__methods is not None:
+            return self.__methods[name]
         else:
             return super(EntryPoints, self).__getattr__(name)
+
+    def __setattr__(self, name, value):
+        super(EntryPoints, self).__setattr__(name, value)
 
 

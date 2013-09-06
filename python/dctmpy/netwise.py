@@ -3,6 +3,7 @@
 #  See main module for license.
 #
 
+from dctmpy import *
 from dctmpy.net.request import Request
 import socket
 
@@ -12,7 +13,7 @@ class Netwise(object):
 
     def __init__(self, **kwargs):
         for attribute in Netwise.attrs:
-            self.__setattr__("__" + attribute, kwargs.pop(attribute, None))
+            self.__setattr__(ATTRIBUTE_PREFIX + attribute, kwargs.pop(attribute, None))
         if self.sockopts is None:
             self.sockopts = kwargs
         if self.sequence is None:
@@ -59,8 +60,13 @@ class Netwise(object):
 
     def __getattr__(self, name):
         if name in Netwise.attrs:
-            return self.__getattribute__("__" + name)
+            return self.__getattribute__(ATTRIBUTE_PREFIX + name)
         else:
             raise AttributeError
 
+    def __setattr__(self, name, value):
+        if name in Netwise.attrs:
+            Netwise.__setattr__(self, ATTRIBUTE_PREFIX + name, value)
+        else:
+            super(Netwise, self).__setattr__(name, value)
 

@@ -12,7 +12,7 @@ class TypedObject(object):
 
     def __init__(self, **kwargs):
         for attribute in TypedObject.attrs:
-            self.__setattr__("__" + attribute, kwargs.pop(attribute, None))
+            self.__setattr__(ATTRIBUTE_PREFIX + attribute, kwargs.pop(attribute, None))
         self.__attrs = {}
         self.__hasExtendedAttrs = False
 
@@ -271,9 +271,15 @@ class TypedObject(object):
         if name in self.__attrs:
             return self.__attrs[name]
         elif name in TypedObject.attrs:
-            return self.__getattribute__("__" + name)
+            return self.__getattribute__(ATTRIBUTE_PREFIX + name)
         else:
             raise AttributeError
+
+    def __setattr__(self, name, value):
+        if name in TypedObject.attrs:
+            TypedObject.__setattr__(self, ATTRIBUTE_PREFIX + name, value)
+        else:
+            super(TypedObject, self).__setattr__(name, value)
 
     def __len__(self):
         return len(self.__attrs)

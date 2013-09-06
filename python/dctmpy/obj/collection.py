@@ -8,11 +8,11 @@ from dctmpy.obj.typedobject import TypedObject
 
 
 class Collection(TypedObject):
-    attrs = ['collection', 'batchsize', 'recordsinbatch', 'maybemore']
+    attrs = ['collection', 'batchsize', 'recordsinbatch', 'maybemore', 'persistent']
 
     def __init__(self, **kwargs):
         for attribute in Collection.attrs:
-            self.__setattr__("__" + attribute, kwargs.pop(attribute, None))
+            self.__setattr__(ATTRIBUTE_PREFIX + attribute, kwargs.pop(attribute, None))
         super(Collection, self).__init__(**kwargs)
 
     def shouldDeserializeType(self):
@@ -32,8 +32,9 @@ class Collection(TypedObject):
 
         if not isEmpty(self.rawdata) and (self.recordsinbatch is None or self.recordsinbatch > 0):
             try:
-                entry = CollectionEntry(session=self.session, type=self.type, rawdata=self.rawdata,
-                                        firstinbatch=firstinbatch)
+                cls = [CollectionEntry, PersistentCollectionEntry][self.persistent]
+                entry = cls(session=self.session, type=self.type, rawdata=self.rawdata,
+                            firstinbatch=firstinbatch)
                 self.rawdata = entry.rawdata
                 return entry
             finally:
@@ -63,9 +64,16 @@ class Collection(TypedObject):
 
     def __getattr__(self, name):
         if name in Collection.attrs:
-            return self.__getattribute__("__" + name)
+            return self.__getattribute__(ATTRIBUTE_PREFIX + name)
         else:
             return super(Collection, self).__getattr__(name)
+
+    def __setattr__(self, name, value):
+        if name in Collection.attrs:
+            Collection.__setattr__(self, ATTRIBUTE_PREFIX + name, value)
+        else:
+            super(TypedObject, self).__setattr__(name, value)
+
 
     def close(self):
         try:
@@ -78,7 +86,7 @@ class Collection(TypedObject):
         self.close()
 
 
-class PersistentCollection(TypedObject):
+class PersistentCollection(Collection):
     def __init__(self, **kwargs):
         super(PersistentCollection, self).__init__(**kwargs)
 
@@ -87,10 +95,16 @@ class PersistentCollection(TypedObject):
             raise ParserException("Empty data")
         if not isEmpty(message):
             self.rawdata = message
-        self.type = self.session.fetchType(message, 0)
+        self.type = self.session.fetchType(self.nextString(), 0)
 
     def shouldDeserializeType(self):
         return False
+
+    def __getattr__(self, name):
+        return super(PersistentCollection, self).__getattr__(name)
+
+    def __setattr__(self, name, value):
+        super(PersistentCollection, self).__setattr__(name, value)
 
 
 class CollectionEntry(TypedObject):
@@ -98,7 +112,7 @@ class CollectionEntry(TypedObject):
 
     def __init__(self, **kwargs):
         for attribute in CollectionEntry.attrs:
-            self.__setattr__("__" + attribute, kwargs.pop(attribute, None))
+            self.__setattr__(ATTRIBUTE_PREFIX + attribute, kwargs.pop(attribute, None))
         super(CollectionEntry, self).__init__(**kwargs)
 
     def readHeader(self):
@@ -112,7 +126,22 @@ class CollectionEntry(TypedObject):
 
     def __getattr__(self, name):
         if name in CollectionEntry.attrs:
-            return self.__getattribute__("__" + name)
+            return self.__getattribute__(ATTRIBUTE_PREFIX + name)
         else:
             return super(CollectionEntry, self).__getattr__(name)
 
+    def __setattr__(self, name, value):
+        if name in CollectionEntry.attrs:
+            CollectionEntry.__setattr__(self, ATTRIBUTE_PREFIX + name, value)
+        else:
+            super(CollectionEntry, self).__setattr__(name, value)
+
+
+class PersistentCollectionEntry(CollectionEntry):
+    def __init__(self, **kwargs):
+        super(PersistentCollectionEntry, self).__init__(**kwargs)
+
+    def readHeader(self):
+        if self.firstinbatch:
+            super(PersistentCollectionEntry, self).readHeader()
+        self.nextString()

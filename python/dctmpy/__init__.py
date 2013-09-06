@@ -220,6 +220,8 @@ CLIENT_VERSION_ARRAY = [
 
 DEFAULT_BATCH_SIZE = 20
 
+ATTRIBUTE_PREFIX = "__"
+
 
 def getPlatformId():
     (system, release, version) = platform.system_alias(platform.system(), platform.release(), platform.version())
@@ -405,16 +407,22 @@ class AttrInfo(object):
 
     def __init__(self, **kwargs):
         for attribute in AttrInfo.attrs:
-            self.__setattr__("__" + attribute, kwargs.pop(attribute, None))
+            self.__setattr__(ATTRIBUTE_PREFIX + attribute, kwargs.pop(attribute, None))
 
     def clone(self):
         return AttrInfo(**dict((x, self.__getattr__(x)) for x in AttrInfo.attrs))
 
     def __getattr__(self, name):
         if name in AttrInfo.attrs:
-            return self.__getattribute__("__" + name)
+            return self.__getattribute__(ATTRIBUTE_PREFIX + name)
         else:
             raise AttributeError
+
+    def __setattr__(self, name, value):
+        if name in AttrInfo.attrs:
+            AttrInfo.__setattr__(self, ATTRIBUTE_PREFIX + name, value)
+        else:
+            super(AttrInfo, self).__setattr__(name, value)
 
 
 class AttrValue(object):
@@ -422,7 +430,7 @@ class AttrValue(object):
 
     def __init__(self, **kwargs):
         for attribute in AttrValue.attrs:
-            self.__setattr__("__" + attribute, kwargs.pop(attribute, None))
+            self.__setattr__(ATTRIBUTE_PREFIX + attribute, kwargs.pop(attribute, None))
         if self.values is None:
             self.values = []
         if not isinstance(self.values, list):
@@ -434,9 +442,16 @@ class AttrValue(object):
 
     def __getattr__(self, name):
         if name in AttrValue.attrs:
-            return self.__getattribute__("__" + name)
+            return self.__getattribute__(ATTRIBUTE_PREFIX + name)
         else:
             raise AttributeError
+
+    def __setattr__(self, name, value):
+        if name in AttrValue.attrs:
+            AttrValue.__setattr__(self, ATTRIBUTE_PREFIX + name, value)
+        else:
+            super(AttrValue, self).__setattr__(name, value)
+
 
     def __len__(self):
         if self.repeating:
@@ -489,17 +504,24 @@ class TypeInfo(object):
 
     def __init__(self, **kwargs):
         for attribute in TypeInfo.attrs:
-            self.__setattr__("__" + attribute, kwargs.pop(attribute, None))
+            self.__setattr__(ATTRIBUTE_PREFIX + attribute, kwargs.pop(attribute, None))
         self.__attrs = []
         self.__positions = {}
 
     def __getattr__(self, name):
         if name in TypeInfo.attrs:
-            return self.__getattribute__("__" + name)
+            return self.__getattribute__(ATTRIBUTE_PREFIX + name)
         elif name == "attributes":
             return self.__attrs
         else:
             raise AttributeError
+
+    def __setattr__(self, name, value):
+        if name in TypeInfo.attrs:
+            TypeInfo.__setattr__(self, ATTRIBUTE_PREFIX + name, value)
+        else:
+            super(TypeInfo, self).__setattr__(name, value)
+
 
     def append(self, attrInfo):
         self.__attrs.append(attrInfo)
