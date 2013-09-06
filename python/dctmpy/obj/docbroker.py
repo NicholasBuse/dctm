@@ -64,17 +64,3 @@ class DocbaseMap(DocbrokerObject):
     def add(self, attrValue):
         attrValue.repeating = True
         super(DocbrokerObject, self).add(attrValue)
-
-    def getRecords(self):
-        if 'r_docbase_name' in self:
-            return [self.getRecord(index) for index in xrange(0, len(self.r_docbase_name))]
-        return []
-
-    def getRecord(self, index):
-        return {
-            'name': self.r_docbase_name[index],
-            'id': self.r_docbase_id[index],
-            'description': self.r_docbase_description[index],
-            'version': self.r_server_version[index],
-            'address': parseAddr(self.i_host_addr[index]),
-        }

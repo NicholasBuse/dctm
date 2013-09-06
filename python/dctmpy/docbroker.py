@@ -29,9 +29,10 @@ class Docbroker(Netwise):
         )
 
     def getServerMap(self, docbase):
-        return DocbaseMap(
-            rawdata=self.requestObject(requestServerMap(version, handle, docbase))
-        )
+        servermap = DocbaseMap(rawdata=self.requestObject(requestServerMap(version, handle, docbase)))
+        if not 'r_host_name' in servermap:
+            raise RuntimeError("No servers for docbase %s" % docbase)
+        return servermap
 
     def requestObject(self, data):
         try:
