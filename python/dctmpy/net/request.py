@@ -46,7 +46,7 @@ class Request(object):
             raise ProtocolException("Unable to read header")
 
         messageLength = 0
-        for i in range(0, HEADER_SIZE):
+        for i in xrange(0, HEADER_SIZE):
             messageLength = messageLength << 8 | messagePayload[i]
 
         headerPayload = stringToIntegerArray(self.socket.recv(2))

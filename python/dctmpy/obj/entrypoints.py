@@ -17,9 +17,7 @@ class EntryPoints(TypedObject):
     def deserialize(self, message=None):
         super(EntryPoints, self).deserialize(message)
         if len(self) > 0:
-            names = self['name']
-            poss = self['pos']
-            self.__methods = dict((names[i], poss[i]) for i in range(0, len(names)))
+            self.__methods = dict(zip(self['name'], self['pos']))
 
     def methods(self):
         return self.__methods

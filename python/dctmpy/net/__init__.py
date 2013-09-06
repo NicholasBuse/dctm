@@ -109,7 +109,7 @@ def readInteger(data):
 
     value = data.pop(0)
     value -= (value & 0x80) << 1
-    for i in range(1, length):
+    for i in xrange(1, length):
         value = value << 8 | data.pop(0)
         if value > 0x7fffffff:
             value = value - 0xffffffff - 1
@@ -131,7 +131,7 @@ def readLength(data):
         raise RuntimeError("Wrong sequence, %d bytes required, got: %d" % (length, len(data)))
 
     value = data.pop(0)
-    for i in range(1, length):
+    for i in xrange(1, length):
         value = value << 8 | data.pop(0)
         if value > 0x7fffffff:
             value = value - 0xffffffff - 1
@@ -158,7 +158,7 @@ def readArray(data, asstring=False):
     elif sequence == STRING_START:
         length = readLength(data)
         result = []
-        for i in range(0, length):
+        for i in xrange(0, length):
             result.append(data.pop(0))
         if asstring and result[len(result) - 1] == NULL_BYTE:
             result.pop()

@@ -15,7 +15,7 @@ class TypeObject(TypedObject):
     def deserialize(self, message=None):
         self.readHeader()
         if self.__typeCont is not None:
-            for i in range(0, self.__typeCont):
+            for i in xrange(0, self.__typeCont):
                 self.deserializeChildType()
         else:
             while not isEmpty(self.rawdata()):

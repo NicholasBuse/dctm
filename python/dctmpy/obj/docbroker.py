@@ -28,7 +28,7 @@ class DocbrokerObject(TypedObject):
 
         self.readInt()
 
-        for i in range(0, self.readInt()):
+        for i in xrange(0, self.readInt()):
             self.deserializeAttr(i)
 
     def deserializeAttr(self, index):
@@ -45,7 +45,7 @@ class DocbrokerObject(TypedObject):
         if not repeating:
             result.append(self.readAttrValue(attrType))
         else:
-            for i in range(0, self.readInt()):
+            for i in xrange(0, self.readInt()):
                 result.append(self.readAttrValue(attrType))
 
         self.add(AttrValue(**{
@@ -67,7 +67,7 @@ class DocbaseMap(DocbrokerObject):
 
     def getRecords(self):
         if 'r_docbase_name' in self:
-            return [self.getRecord(index) for index in range(0, len(self.r_docbase_name))]
+            return [self.getRecord(index) for index in xrange(0, len(self.r_docbase_name))]
         return []
 
     def getRecord(self, index):

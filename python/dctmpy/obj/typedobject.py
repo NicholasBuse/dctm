@@ -57,7 +57,7 @@ class TypedObject(object):
             raise ParserException("Invalid type header: %s" % header)
 
         typeInfo = self.deserializeTypeInfo()
-        for i in range(0, self.readInt()):
+        for i in xrange(0, self.readInt()):
             typeInfo.append(self.deserializeAttrInfo())
 
         return typeInfo
@@ -80,7 +80,7 @@ class TypedObject(object):
         if self.type is None or typename != self.type.name:
             raise ParserException("No type info for %s" % typename)
 
-        for i in range(0, self.readInt()):
+        for i in xrange(0, self.readInt()):
             self.deserializeAttr(i)
 
         self.deserializeExtendedAttr()
@@ -105,7 +105,7 @@ class TypedObject(object):
         if not repeating:
             result.append(self.readAttrValue(attrType))
         else:
-            for i in range(0, self.readInt()):
+            for i in xrange(0, self.readInt()):
                 result.append(self.readAttrValue(attrType))
 
         self.add(AttrValue(**{
@@ -126,7 +126,7 @@ class TypedObject(object):
             self.__hasExtendedAttrs = True
         else:
             return
-        for i in range(0, attrCount):
+        for i in xrange(0, attrCount):
             attrName = self.nextString(ATTRIBUTE_PATTERN)
             attrType = self.nextString(ATTRIBUTE_PATTERN)
             repeating = REPEATING == self.nextString()
@@ -140,7 +140,7 @@ class TypedObject(object):
             if not repeating:
                 result.append(self.readAttrValue(attrType))
             else:
-                for i in range(1, self.readInt()):
+                for i in xrange(1, self.readInt()):
                     result.append(self.readAttrValue(attrType))
 
             self.__attrs[attrName] = AttrValue(**{
