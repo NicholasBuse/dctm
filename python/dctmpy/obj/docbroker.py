@@ -14,10 +14,10 @@ class DocbrokerObject(TypedObject):
             **{'serializationversion': 0}
         ))
 
-    def deserializeType(self):
+    def readType(self):
         pass
 
-    def deserializeObject(self):
+    def readObject(self):
         header = self.nextToken()
         if "OBJ" != header:
             raise ParserException("Invalid header, expected OBJ, got: %s" % header)
@@ -29,9 +29,9 @@ class DocbrokerObject(TypedObject):
         self.readInt()
 
         for i in xrange(0, self.readInt()):
-            self.deserializeAttr(i)
+            self.readAttr(i)
 
-    def deserializeAttr(self, index):
+    def readAttr(self, index):
         attrName = self.nextString(ATTRIBUTE_PATTERN)
         attrType = self.nextString(ATTRIBUTE_PATTERN)
         repeating = self.nextString(REPEATING_PATTERN) == REPEATING

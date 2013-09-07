@@ -403,33 +403,33 @@ class TypeCache:
 
 
 class AttrInfo(object):
-    attrs = ['position', 'name', 'type', 'repeating', 'length', 'restriction']
+    fields = ['position', 'name', 'type', 'repeating', 'length', 'restriction']
 
     def __init__(self, **kwargs):
-        for attribute in AttrInfo.attrs:
+        for attribute in AttrInfo.fields:
             self.__setattr__(ATTRIBUTE_PREFIX + attribute, kwargs.pop(attribute, None))
 
     def clone(self):
-        return AttrInfo(**dict((x, self.__getattr__(x)) for x in AttrInfo.attrs))
+        return AttrInfo(**dict((x, self.__getattr__(x)) for x in AttrInfo.fields))
 
     def __getattr__(self, name):
-        if name in AttrInfo.attrs:
+        if name in AttrInfo.fields:
             return self.__getattribute__(ATTRIBUTE_PREFIX + name)
         else:
             raise AttributeError
 
     def __setattr__(self, name, value):
-        if name in AttrInfo.attrs:
+        if name in AttrInfo.fields:
             AttrInfo.__setattr__(self, ATTRIBUTE_PREFIX + name, value)
         else:
             super(AttrInfo, self).__setattr__(name, value)
 
 
 class AttrValue(object):
-    attrs = ['name', 'type', 'length', 'repeating', 'values']
+    fields = ['name', 'type', 'length', 'repeating', 'values']
 
     def __init__(self, **kwargs):
-        for attribute in AttrValue.attrs:
+        for attribute in AttrValue.fields:
             self.__setattr__(ATTRIBUTE_PREFIX + attribute, kwargs.pop(attribute, None))
         if self.values is None:
             self.values = []
@@ -441,13 +441,13 @@ class AttrValue(object):
             self.length = 0
 
     def __getattr__(self, name):
-        if name in AttrValue.attrs:
+        if name in AttrValue.fields:
             return self.__getattribute__(ATTRIBUTE_PREFIX + name)
         else:
             raise AttributeError
 
     def __setattr__(self, name, value):
-        if name in AttrValue.attrs:
+        if name in AttrValue.fields:
             AttrValue.__setattr__(self, ATTRIBUTE_PREFIX + name, value)
         else:
             super(AttrValue, self).__setattr__(name, value)
@@ -499,17 +499,17 @@ class AttrValue(object):
 
 
 class TypeInfo(object):
-    attrs = ['name', 'id', 'vstamp', 'version', 'cache', 'super', 'sharedparent', 'aspectname', 'aspectshareflag',
+    fields = ['name', 'id', 'vstamp', 'version', 'cache', 'super', 'sharedparent', 'aspectname', 'aspectshareflag',
              'd6serialization']
 
     def __init__(self, **kwargs):
-        for attribute in TypeInfo.attrs:
+        for attribute in TypeInfo.fields:
             self.__setattr__(ATTRIBUTE_PREFIX + attribute, kwargs.pop(attribute, None))
         self.__attrs = []
         self.__positions = {}
 
     def __getattr__(self, name):
-        if name in TypeInfo.attrs:
+        if name in TypeInfo.fields:
             return self.__getattribute__(ATTRIBUTE_PREFIX + name)
         elif name == "attributes":
             return self.__attrs
@@ -517,7 +517,7 @@ class TypeInfo(object):
             raise AttributeError
 
     def __setattr__(self, name, value):
-        if name in TypeInfo.attrs:
+        if name in TypeInfo.fields:
             TypeInfo.__setattr__(self, ATTRIBUTE_PREFIX + name, value)
         else:
             super(TypeInfo, self).__setattr__(name, value)

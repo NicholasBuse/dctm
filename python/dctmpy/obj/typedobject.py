@@ -8,13 +8,12 @@ from dctmpy import *
 
 
 class TypedObject(object):
-    attrs = ['session', 'type', 'rawdata', 'd6serialization', 'serializationversion', 'iso8601time']
+    fields = ['session', 'type', 'buffer', 'd6serialization', 'serializationversion', 'iso8601time']
 
     def __init__(self, **kwargs):
-        for attribute in TypedObject.attrs:
+        for attribute in TypedObject.fields:
             self.__setattr__(ATTRIBUTE_PREFIX + attribute, kwargs.pop(attribute, None))
         self.__attrs = {}
-        self.__hasExtendedAttrs = False
 
         if self.d6serialization is None:
             if self.serializationversion is None:
@@ -30,39 +29,39 @@ class TypedObject(object):
             else:
                 self.iso8601time = False
 
-        if not isEmpty(self.rawdata):
-            self.deserialize()
+        if not isEmpty(self.buffer):
+            self.read()
 
-    def deserialize(self, message=None):
-        if isEmpty(message) and isEmpty(self.rawdata):
+    def read(self, buf=None):
+        if isEmpty(buf) and isEmpty(self.buffer):
             raise ParserException("Empty data")
-        elif not isEmpty(message):
-            self.rawdata = message
+        elif not isEmpty(buf):
+            self.buffer = buf
 
         self.readHeader()
 
-        if self.type is None and self.shouldDeserializeType():
-            self.type = self.deserializeType()
+        if self.type is None and self.needReadType():
+            self.type = self.readType()
 
-        if self.shouldDeserializeObject():
-            self.deserializeObject()
+        if self.needReadObject():
+            self.readObject()
 
     def readHeader(self):
         if self.d6serialization:
             self.readInt()
 
-    def deserializeType(self):
+    def readType(self):
         header = self.nextToken()
         if header != "TYPE":
             raise ParserException("Invalid type header: %s" % header)
 
-        typeInfo = self.deserializeTypeInfo()
+        typeInfo = self.readTypeInfo()
         for i in xrange(0, self.readInt()):
-            typeInfo.append(self.deserializeAttrInfo())
+            typeInfo.append(self.readAttrInfo())
 
         return typeInfo
 
-    def deserializeObject(self):
+    def readObject(self):
         header = self.nextToken()
         if "OBJ" != header:
             raise ParserException("Invalid header, expected OBJ, got: %s" % header)
@@ -81,11 +80,11 @@ class TypedObject(object):
             raise ParserException("No type info for %s" % typename)
 
         for i in xrange(0, self.readInt()):
-            self.deserializeAttr(i)
+            self.readAttr(i)
 
-        self.deserializeExtendedAttr()
+        self.readExtendedAttr()
 
-    def deserializeAttr(self, index):
+    def readAttr(self, index):
         position = self.ifd6(self.readBase64Int)
         if position is None:
             position = index
@@ -118,12 +117,8 @@ class TypedObject(object):
     def add(self, attrValue):
         self.__attrs[attrValue.name] = attrValue
 
-    def deserializeExtendedAttr(self):
+    def readExtendedAttr(self):
         attrCount = self.readInt()
-        if attrCount > 0:
-            self.__hasExtendedAttrs = True
-        else:
-            return
         for i in xrange(0, attrCount):
             attrName = self.nextString(ATTRIBUTE_PATTERN)
             attrType = self.nextString(ATTRIBUTE_PATTERN)
@@ -160,7 +155,7 @@ class TypedObject(object):
             UNDEFINED: lambda: self.nextString()
         }[attrType]()
 
-    def deserializeTypeInfo(self):
+    def readTypeInfo(self):
         return TypeInfo(**{
             'name': self.nextString(ATTRIBUTE_PATTERN),
             'id': self.nextString(ATTRIBUTE_PATTERN),
@@ -174,7 +169,7 @@ class TypedObject(object):
             'd6serialization': self.d6serialization,
         })
 
-    def deserializeAttrInfo(self):
+    def readAttrInfo(self):
         return AttrInfo(**{
             'position': self.ifd6(self.readBase64Int),
             'name': self.nextString(ATTRIBUTE_PATTERN),
@@ -212,24 +207,24 @@ class TypedObject(object):
                     result += "%s\n" % value
         return result
 
-    def shouldDeserializeType(self):
+    def needReadType(self):
         return True
 
-    def shouldDeserializeObject(self):
+    def needReadObject(self):
         return True
 
-    def read(self, length):
-        data = self.rawdata
-        self.rawdata = data[length:]
+    def substr(self, length):
+        data = self.buffer
+        self.buffer = data[length:]
         return data[:length]
 
     def nextToken(self, separator=DEFAULT_SEPARATOR):
-        self.rawdata = re.sub("^%s" % separator, "", self.rawdata)
-        m = re.search(separator, self.rawdata)
+        self.buffer = re.sub("^%s" % separator, "", self.buffer)
+        m = re.search(separator, self.buffer)
         if m is not None:
-            return self.read(m.start(0))
+            return self.substr(m.start(0))
         else:
-            return self.read(len(self.rawdata))
+            return self.substr(len(self.buffer))
 
     def nextString(self, pattern=None, separator=DEFAULT_SEPARATOR):
         value = self.nextToken(separator)
@@ -246,15 +241,15 @@ class TypedObject(object):
 
     def readString(self):
         self.nextString(ENCODING_PATTERN)
-        return self.read(self.readInt() + 1)[1:]
+        return self.substr(self.readInt() + 1)[1:]
 
     def readTime(self):
-        timestr = self.nextToken(CRLF_PATTERN)
-        if timestr.startswith(" "):
-            timestr = timestr[1:]
-        if timestr.startswith("xxx "):
-            timestr = timestr[4:]
-        return parseTime(timestr, self.iso8601time)
+        value = self.nextToken(CRLF_PATTERN)
+        if value.startswith(" "):
+            value = value[1:]
+        if value.startswith("xxx "):
+            value = value[4:]
+        return parseTime(value, self.iso8601time)
 
     def readBoolean(self):
         return bool(self.nextString(BOOLEAN_PATTERN))
@@ -268,13 +263,13 @@ class TypedObject(object):
     def __getattr__(self, name):
         if name in self.__attrs:
             return self.__attrs[name]
-        elif name in TypedObject.attrs:
+        elif name in TypedObject.fields:
             return self.__getattribute__(ATTRIBUTE_PREFIX + name)
         else:
             raise AttributeError
 
     def __setattr__(self, name, value):
-        if name in TypedObject.attrs:
+        if name in TypedObject.fields:
             TypedObject.__setattr__(self, ATTRIBUTE_PREFIX + name, value)
         else:
             super(TypedObject, self).__setattr__(name, value)

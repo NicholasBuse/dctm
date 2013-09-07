@@ -11,7 +11,7 @@ class Persistent(TypedObject):
     def __init__(self, **kwargs):
         super(Persistent, self).__init__(**kwargs)
 
-    def deserializeType(self):
+    def readType(self):
         typeName = self.nextString(ATTRIBUTE_PATTERN)
         self.nextString(ATTRIBUTE_PATTERN)
         vstamp = 0
@@ -19,8 +19,8 @@ class Persistent(TypedObject):
             vstamp = self.readInt()
         return self.session.fetchType(typeName, vstamp)
 
-    def deserializeObject(self):
-        return super(Persistent, self).deserializeObject()
+    def readObject(self):
+        return super(Persistent, self).readObject()
 
 
 

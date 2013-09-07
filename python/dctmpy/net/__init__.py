@@ -5,6 +5,7 @@
 
 import array
 from dctmpy import *
+from dctmpy.obj.typedobject import TypedObject
 
 PROTOCOL_VERSION = 0x30
 INTEGER_START = 0x02
@@ -80,6 +81,8 @@ def serializeValue(value):
         return serializeInteger(value)
     elif isinstance(value, list):
         return serializeIntegerArray(value)
+    elif isinstance(value, TypedObject):
+        return serializeString(value.serialize())
     elif value is None:
         return serializeString("")
     else:

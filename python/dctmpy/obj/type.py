@@ -12,25 +12,33 @@ class TypeObject(TypedObject):
         self.__typeCont = None
         super(TypeObject, self).__init__(**kwargs)
 
-    def deserialize(self, message=None):
+    def read(self, buf=None):
         self.readHeader()
+        typeInfo = None
         if self.__typeCont is not None:
             for i in xrange(0, self.__typeCont):
-                self.deserializeChildType()
+                typeInfo = self.deserializeChildType()
         else:
-            while not isEmpty(self.rawdata()):
-                self.deserializeChildType()
+            while not isEmpty(self.buffer()):
+                typeInfo = self.deserializeChildType()
+        self.type = typeInfo
 
     def deserializeChildType(self):
-        childType = self.deserializeType()
+        childType = self.readType()
         if childType is not None:
             addTypeToCache(childType)
+        return childType
+
+    def readType(self):
+        return super(TypeObject, self).readType()
 
     def readHeader(self):
         self.__typeCont = self.readInt()
+        if self.d6serialization:
+            self.readInt()
 
-    def shouldDeserializeType(self):
+    def needReadType(self):
         return False
 
-    def shouldDeserializeObject(self):
+    def needReadObject(self):
         return False

@@ -8,38 +8,37 @@ from dctmpy.obj.typedobject import TypedObject
 
 
 class Collection(TypedObject):
-    attrs = ['collection', 'batchsize', 'recordsinbatch', 'maybemore', 'persistent']
+    fields = ['collection', 'batchsize', 'records', 'more', 'persistent']
 
     def __init__(self, **kwargs):
-        for attribute in Collection.attrs:
+        for attribute in Collection.fields:
             self.__setattr__(ATTRIBUTE_PREFIX + attribute, kwargs.pop(attribute, None))
         super(Collection, self).__init__(**kwargs)
 
-    def shouldDeserializeType(self):
+    def needReadType(self):
         return True
 
-    def shouldDeserializeObject(self):
+    def needReadObject(self):
         return False
 
     def nextRecord(self):
-        firstinbatch = False
-        if isEmpty(self.rawdata) and (self.maybemore is None or self.maybemore):
+        if isEmpty(self.buffer) and (self.more is None or self.more):
             response = self.session.nextBatch(self.collection, self.batchsize)
-            self.rawdata = response.data
-            self.recordsinbatch = response.recordsinbatch
-            self.maybemore = response.maybemore
-            firstinbatch = True
+            self.buffer = response.data
+            self.records = response.records
+            self.more = response.more
+            if self.d6serialization:
+                self.readInt()
 
-        if not isEmpty(self.rawdata) and (self.recordsinbatch is None or self.recordsinbatch > 0):
+        if not isEmpty(self.buffer) and (self.records is None or self.records > 0):
             try:
                 cls = [CollectionEntry, PersistentCollectionEntry][self.persistent]
-                entry = cls(session=self.session, type=self.type, rawdata=self.rawdata,
-                            firstinbatch=firstinbatch)
-                self.rawdata = entry.rawdata
+                entry = cls(session=self.session, type=self.type, buffer=self.buffer)
+                self.buffer = entry.buffer
                 return entry
             finally:
-                if self.recordsinbatch is not None:
-                    self.recordsinbatch -= 1
+                if self.records is not None:
+                    self.records -= 1
 
         self.close()
         return None
@@ -63,16 +62,16 @@ class Collection(TypedObject):
         return iterator(self)
 
     def __getattr__(self, name):
-        if name in Collection.attrs:
+        if name in Collection.fields:
             return self.__getattribute__(ATTRIBUTE_PREFIX + name)
         else:
             return super(Collection, self).__getattr__(name)
 
     def __setattr__(self, name, value):
-        if name in Collection.attrs:
+        if name in Collection.fields:
             Collection.__setattr__(self, ATTRIBUTE_PREFIX + name, value)
         else:
-            super(TypedObject, self).__setattr__(name, value)
+            super(Collection, self).__setattr__(name, value)
 
     def close(self):
         try:
@@ -89,15 +88,18 @@ class PersistentCollection(Collection):
     def __init__(self, **kwargs):
         super(PersistentCollection, self).__init__(**kwargs)
 
-    def deserialize(self, message=None):
-        if isEmpty(message) and isEmpty(self.rawdata):
+    def read(self, buf=None):
+        if isEmpty(buf) and isEmpty(self.buffer):
             raise ParserException("Empty data")
-        if not isEmpty(message):
-            self.rawdata = message
+        if not isEmpty(buf):
+            self.buffer = buf
         self.type = self.session.fetchType(self.nextString(), 0)
 
-    def shouldDeserializeType(self):
+    def needReadType(self):
         return False
+
+    def nextRecord(self):
+        return super(PersistentCollection, self).nextRecord()
 
     def __getattr__(self, name):
         return super(PersistentCollection, self).__getattr__(name)
@@ -107,30 +109,25 @@ class PersistentCollection(Collection):
 
 
 class CollectionEntry(TypedObject):
-    attrs = ['firstinbatch']
-
     def __init__(self, **kwargs):
-        for attribute in CollectionEntry.attrs:
-            self.__setattr__(ATTRIBUTE_PREFIX + attribute, kwargs.pop(attribute, None))
         super(CollectionEntry, self).__init__(**kwargs)
 
     def readHeader(self):
-        if self.firstinbatch:
-            super(CollectionEntry, self).readHeader()
+        pass
 
-    def deserialize(self, message=None):
-        super(CollectionEntry, self).deserialize(message)
+    def read(self, buf=None):
+        super(CollectionEntry, self).read(buf)
         if self.d6serialization:
             self.readInt()
 
     def __getattr__(self, name):
-        if name in CollectionEntry.attrs:
+        if name in CollectionEntry.fields:
             return self.__getattribute__(ATTRIBUTE_PREFIX + name)
         else:
             return super(CollectionEntry, self).__getattr__(name)
 
     def __setattr__(self, name, value):
-        if name in CollectionEntry.attrs:
+        if name in CollectionEntry.fields:
             CollectionEntry.__setattr__(self, ATTRIBUTE_PREFIX + name, value)
         else:
             super(CollectionEntry, self).__setattr__(name, value)
@@ -141,6 +138,16 @@ class PersistentCollectionEntry(CollectionEntry):
         super(PersistentCollectionEntry, self).__init__(**kwargs)
 
     def readHeader(self):
-        if self.firstinbatch:
-            super(PersistentCollectionEntry, self).readHeader()
-        self.nextString()
+        if not self.d6serialization:
+            self.nextString()
+
+    def read(self, buf=None):
+        super(PersistentCollectionEntry, self).read(buf)
+        if self.d6serialization:
+            self.readInt()
+
+    def __getattr__(self, name):
+        return super(PersistentCollectionEntry, self).__getattr__(name)
+
+    def __setattr__(self, name, value):
+        super(PersistentCollectionEntry, self).__setattr__(name, value)
