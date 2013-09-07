@@ -8,23 +8,18 @@ from dctmpy import *
 
 
 class TypedObject(object):
-    fields = ['session', 'type', 'buffer', 'd6serialization', 'serializationversion', 'iso8601time']
+    fields = ['session', 'type', 'buffer', 'serializationversion', 'iso8601time']
 
     def __init__(self, **kwargs):
         for attribute in TypedObject.fields:
             self.__setattr__(ATTRIBUTE_PREFIX + attribute, kwargs.pop(attribute, None))
         self.__attrs = {}
 
-        if self.d6serialization is None:
-            if self.serializationversion is None:
-                self.serializationversion = self.session.serializationversion
-            if self.serializationversion == 0:
-                self.d6serialization = False
-            else:
-                self.d6serialization = True
+        if self.serializationversion is None:
+            self.serializationversion = self.session.serializationversion
 
         if self.iso8601time is None:
-            if self.d6serialization:
+            if self.serializationversion == 2:
                 self.iso8601time = self.session.iso8601time
             else:
                 self.iso8601time = False
@@ -47,8 +42,11 @@ class TypedObject(object):
             self.readObject()
 
     def readHeader(self):
-        if self.d6serialization:
-            self.readInt()
+        if self.serializationversion > 0:
+            serializationversion = self.readInt()
+            if serializationversion != self.serializationversion:
+                raise RuntimeError(
+                    "Invalid serialization version %d, expected %d" % (serializationversion, self.serializationversion))
 
     def readType(self):
         header = self.nextToken()
@@ -71,7 +69,7 @@ class TypedObject(object):
         if typename is None or len(typename) == 0:
             raise ParserException("Wrong type name")
 
-        if self.d6serialization:
+        if self.serializationversion > 0:
             self.readInt()
             self.readInt()
             self.readInt()
@@ -91,6 +89,11 @@ class TypedObject(object):
 
         repeating = self.type.get(position).repeating
         attrType = self.type.get(position).type
+
+        if self.serializationversion == 2:
+            repeating = self.nextString(REPEATING_PATTERN) == REPEATING
+            attrType = TYPES[self.readInt()]
+
         attrName = self.type.get(position).name
         attrLength = self.type.get(position).length
 
@@ -166,7 +169,7 @@ class TypedObject(object):
             'sharedparent': self.ifd6(self.nextString, None, ATTRIBUTE_PATTERN),
             'aspectname': self.ifd6(self.nextString, None, ATTRIBUTE_PATTERN),
             'aspectshareflag': self.ifd6(self.readBoolean),
-            'd6serialization': self.d6serialization,
+            'serializationversion': self.serializationversion,
         })
 
     def readAttrInfo(self):
@@ -180,16 +183,16 @@ class TypedObject(object):
         })
 
     def ifd6(self, method, default=None, *args, **kwargs):
-        if self.d6serialization:
+        if self.serializationversion > 0:
             return method(*args, **kwargs)
         return default
 
     def serialize(self):
         result = ""
-        if self.d6serialization:
-            result += "%d\n" % self.session.serializationversionhint
+        if self.serializationversion > 0:
+            result += "%d\n" % self.serializationversion
         result += "OBJ NULL 0 "
-        if self.d6serialization:
+        if self.serializationversion > 0:
             result += "0 0\n0\n"
         result += "%d\n" % len(self.__attrs)
         for attrValue in self.__attrs.values():

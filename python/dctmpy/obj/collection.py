@@ -27,7 +27,7 @@ class Collection(TypedObject):
             self.buffer = response.data
             self.records = response.records
             self.more = response.more
-            if self.d6serialization:
+            if self.serializationversion > 0:
                 self.readInt()
 
         if not isEmpty(self.buffer) and (self.records is None or self.records > 0):
@@ -117,7 +117,7 @@ class CollectionEntry(TypedObject):
 
     def read(self, buf=None):
         super(CollectionEntry, self).read(buf)
-        if self.d6serialization:
+        if self.serializationversion > 0:
             self.readInt()
 
     def __getattr__(self, name):
@@ -138,12 +138,12 @@ class PersistentCollectionEntry(CollectionEntry):
         super(PersistentCollectionEntry, self).__init__(**kwargs)
 
     def readHeader(self):
-        if not self.d6serialization:
+        if not self.serializationversion > 0:
             self.nextString()
 
     def read(self, buf=None):
         super(PersistentCollectionEntry, self).read(buf)
-        if self.d6serialization:
+        if self.serializationversion > 0:
             self.readInt()
 
     def __getattr__(self, name):

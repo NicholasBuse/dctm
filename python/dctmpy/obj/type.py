@@ -34,7 +34,7 @@ class TypeObject(TypedObject):
 
     def readHeader(self):
         self.__typeCont = self.readInt()
-        if self.d6serialization:
+        if self.serializationversion > 0:
             self.readInt()
 
     def needReadType(self):

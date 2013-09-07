@@ -108,20 +108,17 @@ class Docbase(Netwise):
         reason = response.next()
         serverVersion = response.next()
         if serverVersion[7] == DM_CLIENT_SERIALIZATION_VERSION_HINT:
-            if DM_CLIENT_SERIALIZATION_VERSION_HINT > 0:
-                self.serializationversion = 1
-            else:
-                self.serializationversion = 0
+            self.serializationversion = DM_CLIENT_SERIALIZATION_VERSION_HINT
         else:
             self.serializationversion = 0
 
-        if self.serializationversion == 0:
+        if self.serializationversion == 0 or self.serializationversion == 1:
             self.iso8601time = False
         else:
-            if serverVersion[9] & 0x01 == 1:
-                self.iso8601time = True
-            else:
+            if serverVersion[9] & 0x01 != 0:
                 self.iso8601time = False
+            else:
+                self.iso8601time = True
 
         session = response.next()
 
@@ -325,6 +322,11 @@ class Docbase(Netwise):
             objectid = NULL_ID
         return self.apply(RPC_APPLY_FOR_ID, objectid, method, request, cls, faulted)
 
+    def asTime(self, objectid, method, request=None, cls=None, faulted=False):
+        if objectid is None:
+            objectid = NULL_ID
+        return self.apply(RPC_APPLY_FOR_TIME, objectid, method, request, cls, faulted)
+
     def getMethod(self, name):
         if name not in self.entrypoints:
             raise RuntimeError("Unknown method: %s" % name)
@@ -388,4 +390,5 @@ KNOWN_ENTRY_POINTS = {
     'GET_ERRORS': (Docbase.asCollection, Collection),
     'FETCH_TYPE': (Docbase.asObject, TypedObject),
     'EXEC': (Docbase.asCollection, Collection),
+    'TIME': (Docbase.asTime, TypedObject)
 }

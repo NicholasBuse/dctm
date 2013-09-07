@@ -195,7 +195,7 @@ CLIENT_VERSION_STRING = "6.0.0.1 python"
 
 DM_CLIENT_CONNECT_PROTOCOL = 2
 DM_CLIENT_SESSION_RECORD_HINT = -1
-DM_CLIENT_SERIALIZATION_VERSION_HINT = 1
+DM_CLIENT_SERIALIZATION_VERSION_HINT = 2
 
 DM_CLIENT_USE_OBDATA = 1 << 0
 DM_CLIENT_USE_NEW_RPC = 1 << 1
@@ -323,7 +323,7 @@ def parseTime(value, iso8601Time=False):
         if len(chunks) != 7:
             raise ParserException("Invalid date: %s" % value)
         return calendar.timegm(
-            [int(chunks[0]), MONTHS[chunks[1]], int(chunks[2]), int(chunks[3]), int(chunks[4]), int(chunks[5])])
+            [int(chunks[0]), int(chunks[1]), int(chunks[2]), int(chunks[3]), int(chunks[4]), int(chunks[5])])
     else:
         chunks = re.split("[: ]", value)
         if len(chunks) != 6:
@@ -331,7 +331,7 @@ def parseTime(value, iso8601Time=False):
         if not chunks[0] in MONTHS:
             raise ParserException("Invalid month: %s" % chunks[0])
         return time.mktime(
-            [int(chunks[5]), MONTHS[chunks[0]], int(chunks[1]), int(chunks[2]), int(chunks[3]), int(chunks[4]), 0, 0,
+            [int(chunks[5]), MONTHS[int(chunks[0])], int(chunks[1]), int(chunks[2]), int(chunks[3]), int(chunks[4]), 0, 0,
              -1])
 
 
@@ -500,7 +500,7 @@ class AttrValue(object):
 
 class TypeInfo(object):
     fields = ['name', 'id', 'vstamp', 'version', 'cache', 'super', 'sharedparent', 'aspectname', 'aspectshareflag',
-             'd6serialization']
+             'serializationversion']
 
     def __init__(self, **kwargs):
         for attribute in TypeInfo.fields:
@@ -522,10 +522,9 @@ class TypeInfo(object):
         else:
             super(TypeInfo, self).__setattr__(name, value)
 
-
     def append(self, attrInfo):
         self.__attrs.append(attrInfo)
-        if self.d6serialization:
+        if self.serializationversion > 0:
             if attrInfo.position is not None:
                 self.__positions[attrInfo.position] = attrInfo
             elif self.name != "GeneratedType":
@@ -533,14 +532,14 @@ class TypeInfo(object):
 
     def insert(self, index, attrInfo):
         self.__attrs.insert(index, attrInfo)
-        if self.d6serialization:
+        if self.serializationversion > 0:
             if attrInfo.position is not None:
                 self.__positions[attrInfo.position] = attrInfo
             elif self.name != "GeneratedType":
                 raise RuntimeError("Empty position")
 
     def get(self, index):
-        if self.d6serialization:
+        if self.serializationversion > 0:
             if self.name != "GeneratedType":
                 return self.__positions[index]
         return self.__attrs[index]

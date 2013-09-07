@@ -15,7 +15,7 @@ class Persistent(TypedObject):
         typeName = self.nextString(ATTRIBUTE_PATTERN)
         self.nextString(ATTRIBUTE_PATTERN)
         vstamp = 0
-        if self.d6serialization:
+        if self.serializationversion > 0:
             vstamp = self.readInt()
         return self.session.fetchType(typeName, vstamp)
 
