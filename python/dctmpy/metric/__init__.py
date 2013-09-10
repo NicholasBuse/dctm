@@ -28,7 +28,7 @@ def checkRegistration(docbroker, docbasename, servername=None, checkall=True):
     if servername is not None and not servername in servermap['r_server_name']:
         raise CheckError(
             "%s.%s is not registered on %s" % (docbasename, servername, parseAddr(servermap['i_host_addr'])))
-    elif not checkall:
+    elif servername is None and not checkall:
         return "docbase %s is registered on %s" % (docbasename, parseAddr(docbasemap['i_host_addr']))
     message = ""
     success = True
