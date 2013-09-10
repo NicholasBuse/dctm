@@ -390,5 +390,6 @@ KNOWN_ENTRY_POINTS = {
     'GET_ERRORS': (Docbase.asCollection, Collection),
     'FETCH_TYPE': (Docbase.asObject, TypedObject),
     'EXEC': (Docbase.asCollection, Collection),
-    'TIME': (Docbase.asTime, TypedObject)
+    'TIME': (Docbase.asTime, TypedObject),
+    'COUNT_SESSIONS': (Docbase.asObject, TypedObject),
 }

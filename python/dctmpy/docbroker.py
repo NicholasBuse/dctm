@@ -2,7 +2,7 @@
 #
 #  See main module for license.
 #
-from dctmpy import req
+from dctmpy import req, parseAddr
 from dctmpy.netwise import Netwise
 from dctmpy.obj.docbroker import DocbaseMap
 
@@ -30,7 +30,7 @@ class Docbroker(Netwise):
     def getServerMap(self, docbase):
         servermap = DocbaseMap(buffer=self.requestObject(req.serverMap(version, handle, docbase)))
         if not 'r_host_name' in servermap:
-            raise RuntimeError("No servers for docbase %s" % docbase)
+            raise RuntimeError("No servers for docbase %s on %s" % (docbase, parseAddr(servermap['i_host_addr'])))
         return servermap
 
     def requestObject(self, data):

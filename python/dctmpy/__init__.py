@@ -331,7 +331,7 @@ def parseTime(value, iso8601Time=False):
         if not chunks[0] in MONTHS:
             raise ParserException("Invalid month: %s" % chunks[0])
         return time.mktime(
-            [int(chunks[5]), MONTHS[int(chunks[0])], int(chunks[1]), int(chunks[2]), int(chunks[3]), int(chunks[4]), 0, 0,
+            [int(chunks[5]), MONTHS[chunks[0]], int(chunks[1]), int(chunks[2]), int(chunks[3]), int(chunks[4]), 0, 0,
              -1])
 
 

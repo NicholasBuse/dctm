@@ -65,7 +65,7 @@ def authenticate(session, username, password):
 def serverConfig(session):
     obj = TypedObject(session=session)
     obj.add(AttrValue(name="OBJECT_TYPE", type=STRING, values=["dm_server_config"]))
-    obj.add(AttrValue(name="FOR_REVERT", type=BOOL, values=["F"]))
+    obj.add(AttrValue(name="FOR_REVERT", type=BOOL, values=[False]))
     obj.add(AttrValue(name="CACHE_VSTAMP", type=INT, values=[0]))
     return obj
 
@@ -73,7 +73,7 @@ def serverConfig(session):
 def docbaseConfig(session):
     obj = TypedObject(session=session)
     obj.add(AttrValue(name="OBJECT_TYPE", type=STRING, values=["dm_docbase_config"]))
-    obj.add(AttrValue(name="FOR_REVERT", type=BOOL, values=["F"]))
+    obj.add(AttrValue(name="FOR_REVERT", type=BOOL, values=[False]))
     obj.add(AttrValue(name="CACHE_VSTAMP", type=INT, values=[0]))
     return obj
 
@@ -106,3 +106,9 @@ def folderByPath(session, path):
     return obj
 
 
+def indexAgentStatus(session, indexname, agentname):
+    obj = TypedObject(session=session)
+    obj.add(AttrValue(name="NAME", type=STRING, values=[indexname]))
+    obj.add(AttrValue(name="AGENT_INSTANCE_NAME", type=STRING, values=[agentname]))
+    obj.add(AttrValue(name="ACTION", type=STRING, values=["status"]))
+    return obj

@@ -62,5 +62,6 @@ class DocbaseMap(DocbrokerObject):
         super(DocbaseMap, self).__init__(**kwargs)
 
     def add(self, attrValue):
-        attrValue.repeating = True
+        if not attrValue.name in ['i_host_addr']:
+            attrValue.repeating = True
         super(DocbrokerObject, self).add(attrValue)
