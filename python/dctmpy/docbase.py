@@ -216,6 +216,7 @@ class Docbase(Netwise):
             result.collection = response.collection
             result.persistent = response.persistent
             result.records = response.records
+            result.more = response.more
             if isinstance(request, TypedObject) and 'BATCH_HINT' in request:
                 result.batchsize = request['BATCH_HINT']
             else:

@@ -452,7 +452,6 @@ class AttrValue(object):
         else:
             super(AttrValue, self).__setattr__(name, value)
 
-
     def __len__(self):
         if self.repeating:
             return len(self.values)
@@ -500,7 +499,7 @@ class AttrValue(object):
 
 class TypeInfo(object):
     fields = ['name', 'id', 'vstamp', 'version', 'cache', 'super', 'sharedparent', 'aspectname', 'aspectshareflag',
-             'serializationversion']
+              'serializationversion']
 
     def __init__(self, **kwargs):
         for attribute in TypeInfo.fields:

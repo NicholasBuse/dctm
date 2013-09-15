@@ -20,6 +20,25 @@ JOB_ACTIVE_CONDITION = " AND ((a_last_invocation IS NOT NULLDATE and a_last_comp
                        " AND (i_is_replica = 0 OR i_is_replica is NULL)"
 
 
+def checkProjectionTargets(session):
+    message = ""
+    success = True
+    for (host, port) in getServerTargets(session):
+        try:
+            message += "%s, " % checkRegistration(host, port, session.docbaseconfig['object_name'],
+                                                  session.serverconfig['object_name'])
+        except Exception, e:
+            success = False
+            message += "%s, " % str(e)
+    if success:
+        return message[:-2]
+    raise CheckError(message[:-2])
+
+
+def checkRegistration(host, port, docbasename, servername=None, checkall=True):
+    return checkRegistration(Docbroker(host=host, port=port), docbasename, servername, checkall)
+
+
 def checkRegistration(docbroker, docbasename, servername=None, checkall=True):
     docbasemap = docbroker.getDocbaseMap()
     if not docbasename in docbasemap['r_docbase_name']:
@@ -45,14 +64,18 @@ def checkRegistration(docbroker, docbasename, servername=None, checkall=True):
             chunks = connaddr.split(" ")
             host = chunks[4]
             port = int(chunks[2], 16)
+            session = None
             try:
-                Docbase(host=host, port=port, docbaseid=docbaseid).disconnect()
+                session = Docbase(host=host, port=port, docbaseid=docbaseid)
                 message += "%s.%s has status %s on %s, " % (
                     docbasename, srv, status, parseAddr(servermap['i_host_addr']))
             except Exception, e:
                 message += "%s.%s has status %s on %s, but error occurred during connection %s, " % (
                     docbasename, srv, status, parseAddr(servermap['i_host_addr']), str(e))
                 success = False
+            finally:
+                if session is not None:
+                    session.disconnect()
     if success:
         return message[:-2]
     raise CheckError(message[:-2])
@@ -62,7 +85,17 @@ def checkJobs(session, jobs=None):
     message = ""
     critical = False
     warning = False
-    for job in getJobs(session, jobs):
+    jobstocheck = None
+    if jobs is not None:
+        if isinstance(jobs, list):
+            jobstocheck = list(jobs)
+        elif isinstance(jobs, str):
+            jobstocheck = re.split(",\s*", jobs)
+        else:
+            raise RuntimeError("Wrong jobs argument")
+    for job in getJobs(session, jobstocheck):
+        if jobstocheck is not None and job['object_name'] in jobstocheck:
+            jobstocheck.remove(job['object_name'])
         try:
             message += "%s, " % checkJobStatus(**job)
         except CheckWarning, w:
@@ -74,6 +107,10 @@ def checkJobs(session, jobs=None):
         except Exception, e:
             message += "%s, " % str(e)
             critical |= True
+    if not isEmpty(jobstocheck):
+        for job in jobstocheck:
+            message += "Job %s not found, " % job
+        raise CheckError(message[:-2])
 
     if critical:
         raise CheckError(message[:-2])
@@ -106,6 +143,11 @@ def checkActiveSessions(session, warn=0, crit=0, warnpct=0, critpct=0):
     if warnpct != 0 and 100.0 * hot / concurrent > warnpct:
         raise CheckWarning("Session count %d/%d exceeds warning threshold %02.2f" % (hot, concurrent, warnpct))
     return concurrent
+
+
+def checkProjectionTargets(host, port, docbaseid, username, password):
+    return checkProjectionTargets(
+        Docbase(host=host, port=port, docbaseid=docbaseid, username=username, password=password))
 
 
 def checkProjectionTargets(session):
@@ -146,20 +188,20 @@ def checkJobStatus(**job):
         raise CheckError("Job %s has invalid max_iterations value: %d" % (jobname, job['max_iterations']))
     if job['run_mode'] == 0 and job['run_interval'] == 0 and job['max_iterations'] != 1:
         raise CheckError("Job %s has invalid max_iterations value for run_mode=0 and run_interval=0" % jobname)
-    if (job['run_mode'] == 1 or job['run_mode'] == 2 or job['run_mode'] == 3 or job['run_mode'] == 4) and (
-                job['run_interval'] < 1 or job['run_interval'] > 32767):
+    if job['run_mode'] in [1, 2, 3, 4] and (job['run_interval'] < 1 or job['run_interval'] > 32767):
         raise CheckError(
-            "Job %s has invalid run_interval value, expected [1, 32767], got %d" % (jobname, job['run_interval']))
+            "Job %s has invalid run_interval value, expected [1, 32767], got %d" % (
+                jobname, job['run_interval']))
     if job['run_mode'] == 7 and (job['run_interval'] < -7 or job['run_interval'] > 7 or job['run_interval'] == 0):
         raise CheckError(
-            "Job %s has invalid run_interval value, expected [-7,7], got %d)" % (jobname, job['run_interval']))
+            "Job %s has invalid run_interval value, expected [-7,7], got %d" % (jobname, job['run_interval']))
     if job['run_mode'] == 8 and (job['run_interval'] < -28 or job['run_interval'] > 28 or job['run_interval'] == 0):
         raise CheckError(
-            "Job %s has invalid run_interval value, expected [-28,0) U (0,28], got %d)" % (
+            "Job %s has invalid run_interval value, expected [-28,0) U (0,28], got %d" % (
                 jobname, job['run_interval']))
     if job['run_mode'] == 9 and (job['run_interval'] < -365 or job['run_interval'] > 365 or job['run_interval'] == 0):
         raise CheckError(
-            "Job %s has invalid run_interval value, expected [-365,0) U (0,365], got %d)" % (
+            "Job %s has invalid run_interval value, expected [-365,0) U (0,365], got %d" % (
                 jobname, job['run_interval']))
     if job['is_inactive']:
         raise CheckError("Job %s is inactive" % jobname)
@@ -182,7 +224,7 @@ def checkJobStatus(**job):
         3: 24 * 60 * 60,
         4: 7 * 24 * 60 * 60
     }
-    if job['run_mode'] == 1 or job['run_mode'] == 2 or job['run_mode'] == 3 or job['run_mode'] == 4:
+    if job['run_mode'] in [1, 2, 3, 4]:
         if timegap > 2 * intervals[job['run_mode']] * job['run_interval']:
             raise CheckError("Job %s last run - %s ago" % (jobname, interval))
         elif timegap > intervals[job['run_mode']] * job['run_interval']:
