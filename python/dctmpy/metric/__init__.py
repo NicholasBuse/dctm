@@ -73,9 +73,11 @@ def checkRegistration(docbroker, docbasename, servername=None, checkall=True):
                 message += "%s.%s has status %s on %s, but error occurred during connection %s, " % (
                     docbasename, srv, status, parseAddr(servermap['i_host_addr']), str(e))
                 success = False
-            finally:
                 if session is not None:
-                    session.disconnect()
+                    try:
+                        session.disconnect()
+                    except Exception, e:
+                        pass
     if success:
         return message[:-2]
     raise CheckError(message[:-2])
@@ -275,9 +277,9 @@ def prettyInterval(timestamp):
 
 class CheckError(RuntimeError):
     def __init__(self, *args, **kwargs):
-        super(CheckError, self).__init__(*args, **kwargs)
+        RuntimeError.__init__(self, *args, **kwargs)
 
 
 class CheckWarning(RuntimeWarning):
     def __init__(self, *args, **kwargs):
-        super(CheckWarning, self).__init__(*args, **kwargs)
+        RuntimeWarning.__init__(self, *args, **kwargs)
