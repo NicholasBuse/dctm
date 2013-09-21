@@ -348,7 +348,7 @@ def intToPseudoBase64(value):
     while value >= 64:
         result += ENCODE.get(value % 64)
         value = (value - (value % 64)) / 64
-    result += ENCODE.get(value)
+    result += ENCODE[value]
     return result
 
 
@@ -357,18 +357,18 @@ def pseudoBase64ToInt(value):
     for c in list(value)[::-1]:
         if c not in DECODE:
             return None
-        result = (result * 64 + DECODE.get(c))
+        result = (result * 64 + DECODE[c])
     return result
 
 
 class ParserException(RuntimeError):
     def __init__(self, *args, **kwargs):
-        super(ParserException, self).__init__(*args, **kwargs)
+        RuntimeError.__init__(self, *args, **kwargs)
 
 
 class ProtocolException(RuntimeError):
     def __init__(self, *args, **kwargs):
-        super(ProtocolException, self).__init__(*args, **kwargs)
+        RuntimeError.__init__(self, *args, **kwargs)
 
 
 class TypeCache:
