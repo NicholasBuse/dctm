@@ -256,8 +256,10 @@ def runQuery(session, query):
 
 
 def getServerTargets(session):
+    result = []
     for target in session.LIST_TARGETS():
-        return zip(target['projection_targets'], target['projection_ports'])
+        result.extend(zip(target['projection_targets'], target['projection_ports']))
+    return result
 
 
 def prettyInterval(timestamp):
