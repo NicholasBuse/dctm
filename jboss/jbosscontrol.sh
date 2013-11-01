@@ -60,8 +60,8 @@ read_file() {
 ###############################################################################
 write_file() {
   file="$1"; shift
-  echo $* >>$file.tmp
-  mv -f "$file.tmp" "$file"
+  echo $* >>"$file.tmp"
+  mv -f -- "$file.tmp" "$file"
 }
 
 ###############################################################################
@@ -92,20 +92,20 @@ force_kill() {
   # Check for pid file
   read_file "$PidFile"
 
-  if [ "$?" = "0" ]; then
+  if [ "x$?" = "x0" ]; then
     srvr_pid=$REPLY
   fi
 
   # Make sure server is started
   monitor_is_running
 
-  if [ "$?" != "0" -a x$srvr_pid = x ]; then
+  if [ "x$?" != "x0" -a "x$srvr_pid" = "x" ]; then
     echo "Jboss is not currently running" >&2
     return 1
   fi
 
   # Check for pid file
-  if [ x$srvr_pid = x ]; then
+  if [ "x$srvr_pid" = "x" ]; then
     echo "Could not kill server process (pid file not found)." >&2
     return 1
   fi
@@ -123,20 +123,20 @@ make_thread_dump() {
   # Check for pid file
   read_file "$PidFile"
 
-  if [ "$?" = "0" ]; then
+  if [ "x$?" = "x0" ]; then
     srvr_pid=$REPLY
   fi
 
   # Make sure server is started
   monitor_is_running
 
-  if [ "$?" != "0" -a x$srvr_pid = x ]; then
+  if [ "x$?" != "x0" -a "x$srvr_pid" = "x" ]; then
     echo "Jboss is not currently running" >&2
     return 1
   fi
 
   # Check for pid file
-  if [ x$srvr_pid = x ]; then
+  if [ "x$srvr_pid" = "x" ]; then
     echo "Could not kill server process (pid file not found)." >&2
     return 1
   fi
@@ -161,7 +161,7 @@ list_thread_dump() {
 ###############################################################################
 is_alive() {
   if [ -d /proc ]; then
-    [ -r /proc/$1 -a "x" != "x$1" ]
+    [ -r "/proc/$1" -a "x" != "x$1" ]
   else
     ps -p $1 2>$NullDevice | grep -q $1
   fi
@@ -210,7 +210,7 @@ monitor_is_running() {
 # intervals.                                                                  #
 ###############################################################################
 time_as_timet() {
-    if [ x$BaseYear = x0 ]; then
+    if [ "x$BaseYear" = "x0" ]; then
         BaseYear=1970
     fi
     cur_timet=`date -u +"%Y %j %H %M %S" | awk '{
@@ -233,7 +233,7 @@ time_as_timet() {
 ###############################################################################
 update_base_time() {
   time_as_timet
-  if [ $LastBaseStartTime -eq 0 ]; then
+  if [ "x$LastBaseStartTime" = "x0" ]; then
     LastBaseStartTime=$cur_timet
   fi
 }
@@ -253,10 +253,12 @@ compute_diff_time() {
 killtree() {
     local pid=$1
     local sig=${2-TERM}
+    print_info "Stopping pid $pid"
     kill -stop $pid 
     for child in `ps -o pid --no-headers --ppid $pid`; do
         killtree $child $sig
     done
+    print_info "Sending $sig signal to $pid"
     kill -$sig $pid
     kill -CONT $pid
 }
@@ -268,14 +270,14 @@ killtree() {
 # again if it reaches 99999.                                                  #
 ###############################################################################
 save_log() {
-  fileLen=`echo ${OutFile} | wc -c`
+  fileLen=`echo "${OutFile}" | wc -c`
   fileLen=`expr ${fileLen} + 1`
-  lastLog=`ls -r1 "$OutFile"????? "$OutFile" 2>/dev/null | head -1`
-  logCount=`ls -r1 "$OutFile"????? "$OutFile" 2>/dev/null | head -1 | cut -c $fileLen-`
+  lastLog=`ls -r1 -- "$OutFile"????? "$OutFile" 2>$NullDevice | head -1`
+  logCount=`ls -r1 -- "$OutFile"????? "$OutFile" 2>$NullDevice | head -1 | cut -c $fileLen-`
   if [ -z "$logCount" ]; then
     logCount=0
   fi
-  if [ "$logCount" -eq "99999" ]; then
+  if [ "x$logCount" = "x99999" ]; then
     logCount=0
   fi
   logCount=`expr ${logCount} + 1`
@@ -287,20 +289,20 @@ save_log() {
     [0-9][0-9][0-9][0-9]) zeroPads="0" ;;
   esac
   rotatedLog="$OutFile"$zeroPads$logCount
-  mv -f "$OutFile" "$rotatedLog"
-  /sbin/fuser -k -HUP $rotatedLog >$NullDevice 2>&1
+  mv -f -- "$OutFile" "$rotatedLog"
+  /sbin/fuser -k -HUP -- "$rotatedLog" >$NullDevice 2>&1
 }
 
 ###############################################################################
 # Rotate the specified log file in size based manner                          #
 ###############################################################################
 start_log_rotate() {
-  while `true`; do
+  while true; do
     trap "" 1
     sleep 60
     if [ -f "$OutFile" ]; then
-      size=`stat -c '%s' "$OutFile"`
-      if [[ $size -ge $LogRotateSize ]]; then
+      size=`stat -c '%s' -- "$OutFile"`
+      if [ $size -ge $LogRotateSize ]; then
         save_log
       fi
     fi
@@ -344,11 +346,13 @@ do_start() {
     return 1
   fi
   # Save previous server output log
-  [ -f "$OutFile" ] && save_log
+  if [ -f "$OutFile" ]; then
+    save_log
+  fi
   # Remove previous state file
-  rm -f "$StateFile"
+  rm -f -- "$StateFile"
   # Change to server root directory
-  cd "$JBOSS_HOME/server/$ServerName"
+  cd -- "$JBOSS_HOME/server/$ServerName"
   # Now start the server and monitor loop
   start_and_monitor_server &
   # Create server lock file
@@ -367,11 +371,11 @@ do_start() {
 start_and_monitor_server() {
 
 
-  trap "rm -f $LockFile" 0
-  trap "exec >>$OutFile 2>&1" 1
+  trap "rm -f -- \"$LockFile\"" 0
+  trap "exec >>\"$OutFile\" 2>&1" 1
   # Disconnect input and redirect stdout/stderr to server output log
   exec 0<$NullDevice
-  exec >>$OutFile 2>&1
+  exec >>"$OutFile" 2>&1
   # Start server and monitor loop
   count=0
 
@@ -382,12 +386,13 @@ start_and_monitor_server() {
     update_base_time
 
     start_log_rotate &
+    rotate_pid=$!
+    print_info "Starting log rotating, pid $rotate_pid"
 
     start_server_script
-
-    for pid in `jobs -p`; do
-      killtree $pid
-    done
+    
+    print_info "Killing log rotating, pid $rotate_pid"
+    killtree $rotate_pid
 
     read_file "$StateFile"
     case $REPLY in
@@ -408,7 +413,7 @@ start_and_monitor_server() {
       count=0
       LastBaseStartTime=0
     fi
-    if [ $AutoRestart != true ]; then
+    if [ "x$AutoRestart" != "xtrue" ]; then
       print_err "Server failed but is not restartable because autorestart is disabled."
       write_state FAILED_NOT_RESTARTABLE:Y:N
       return 1
@@ -438,7 +443,7 @@ start_server_script() {
 
      write_file "$PidFile" $pid
      exec $CommandName $CommandArgs 2>&1) | (
-     trap "exec >>$OutFile 2>&1" 1
+     trap "exec >>\"$OutFile\" 2>&1" 1
      IFS=""; while read line; do
        case $line in
 #JBoss AS 4
@@ -473,17 +478,17 @@ setup_jboss_cmdline() {
   fi
 
   echo $JAVA_OPTS | grep Dorg.jboss.resolver.warning= > $NullDevice 2>&1
-  if [ $? -ne 0 ]; then
+  if [ "x$?" != "x0" ]; then
     JAVA_OPTS="$JAVA_OPTS -Dorg.jboss.resolver.warning=true"
   fi
 
   echo $JAVA_OPTS | grep Dsun.rmi.dgc.client.gcInterval= > $NullDevice 2>&1
-  if [ $? -ne 0 ]; then
+  if [ "x$?" != "x0" ]; then
     JAVA_OPTS="$JAVA_OPTS -Dsun.rmi.dgc.client.gcInterval=3600000"
   fi
 
   echo $JAVA_OPTS | grep Dsun.rmi.dgc.server.gcInterval= > $NullDevice 2>&1
-  if [ $? -ne 0 ]; then
+  if [ "x$?" != "x0" ]; then
     JAVA_OPTS="$JAVA_OPTS -Dsun.rmi.dgc.server.gcInterval=3600000"
   fi
 
@@ -535,11 +540,11 @@ setup_jboss_cmdline() {
 
   # If -server not set in JAVA_OPTS, set it, if supported
   echo $JAVA_OPTS | grep "\-client" > $NullDevice 2>&1
-  if [ $? -ne 0 ]; then
+  if [ "x$?" != "x0" ]; then
     echo $JAVA_OPTS | grep "\-server" > $NullDevice 2>&1
-    if [ $? -ne 0 ]; then
+    if [ "x$?" != "x0" ]; then
       $JAVA -version | grep -i HotSpot > $NullDevice 2>&1
-      if [ $? -eq 0 ]; then
+      if [ "x$?" != "x0" ]; then
         JAVA_OPTS="-server $JAVA_OPTS"
       fi
     fi
@@ -630,7 +635,7 @@ do_kill() {
   # Make sure server is started
   monitor_is_running
 
-  if [ $? -ne 0 -a x$srvr_pid = x ]; then
+  if [ "x$?" != "x0" -a "x$srvr_pid" = "x" ]; then
     echo "Jboss is not currently running" >&2
     return 1
   fi
@@ -669,7 +674,7 @@ do_stat() {
 
   if read_file "$StateFile"; then
     statestr=$REPLY
-    state=`echo $REPLY| sed 's/_ON_ABORTED_STARTUP//g'`
+    state=`echo $REPLY | sed 's/_ON_ABORTED_STARTUP//g'`
     state=`echo $state | sed 's/:.//g'`
   else
     statestr=UNKNOWN:N:N
@@ -684,7 +689,7 @@ do_stat() {
 
   cleanup=N
 
-  if [ $valid_state = 0 ]; then
+  if [ "x$valid_state" = "x0" ]; then
     case $statestr in
       SHUTTING_DOWN:*:N | FORCE_SHUTTING_DOWN:*:N)
         state=SHUTDOWN
@@ -703,7 +708,7 @@ do_stat() {
       ;;
     esac
 
-       if [ "$cleanup" = "Y" ]; then
+       if [ "x$cleanup" = "xY" ]; then
           if server_is_started; then
             write_state $state:Y:N
           else
@@ -712,7 +717,7 @@ do_stat() {
        fi
   fi
 
-  if  [ x$InternalStatCall = xY ]; then
+  if  [ "x$InternalStatCall" = "xY" ]; then
        ServerState=$state
   else
        echo $state
