@@ -270,8 +270,8 @@ killtree() {
 save_log() {
   fileLen=`echo ${OutFile} | wc -c`
   fileLen=`expr ${fileLen} + 1`
-  lastLog=`ls -r1 "$OutFile"????? "$OutFile" | head -1`
-  logCount=`ls -r1 "$OutFile"????? "$OutFile" | head -1 | cut -c $fileLen-`
+  lastLog=`ls -r1 "$OutFile"????? "$OutFile" 2>/dev/null | head -1`
+  logCount=`ls -r1 "$OutFile"????? "$OutFile" 2>/dev/null | head -1 | cut -c $fileLen-`
   if [ -z "$logCount" ]; then
     logCount=0
   fi
@@ -295,15 +295,16 @@ save_log() {
 # Rotate the specified log file in size based manner                          #
 ###############################################################################
 start_log_rotate() {
-  trap "" 1
-  sleep 60
-  if [ -f "$OutFile" ]; then
-    size=`stat -c '%s' "$OutFile"`
-    if [[ $size -ge $LogRotateSize ]]; then
-      save_log
+  while `true`; do
+    trap "" 1
+    sleep 60
+    if [ -f "$OutFile" ]; then
+      size=`stat -c '%s' "$OutFile"`
+      if [[ $size -ge $LogRotateSize ]]; then
+        save_log
+      fi
     fi
-  fi
-  start_log_rotate
+  done
 }
 
 
