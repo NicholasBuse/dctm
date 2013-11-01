@@ -153,7 +153,7 @@ make_thread_dump() {
 list_thread_dump() {
   make_thread_dump
   sleep 1
-  less +"?Full thread dump Java HotSpot" $OutFile
+  less +"?Full thread dump Java HotSpot" -- "$OutFile"
 }
 
 ###############################################################################
@@ -324,8 +324,8 @@ check_dirs() {
     exit 1
   fi
 
-  mkdir -p "$JBOSS_HOME/server/$ServerName/log"
-  mkdir -p "$JBOSS_HOME/server/$ServerName/nodemanager"
+  mkdir -p -- "$JBOSS_HOME/server/$ServerName/log"
+  mkdir -p -- "$JBOSS_HOME/server/$ServerName/nodemanager"
 }
 
 ###############################################################################
@@ -369,8 +369,6 @@ do_start() {
 }
 
 start_and_monitor_server() {
-
-
   trap "rm -f -- \"$LockFile\"" 0
   trap "exec >>\"$OutFile\" 2>&1" 1
   # Disconnect input and redirect stdout/stderr to server output log
