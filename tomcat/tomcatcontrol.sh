@@ -167,9 +167,12 @@ server_not_yet_started() {
 ###############################################################################
 monitor_is_running() {
   if read_file "$LockFile" && is_alive $REPLY; then
-    return 0
+    /sbin/fuser -- "$LockFile" > $NullDevice 2>&1
+    if [ "x$?" = "x0" ]; then
+      return 0
+    fi
   fi
-  rm -f "$LockFile"
+  rm -f -- "$LockFile"
   return 1
 }
 
@@ -242,13 +245,7 @@ save_log() {
   fileLen=`echo "${OutFile}" | wc -c`
   fileLen=`expr ${fileLen} + 1`
   lastLog=`ls -r1 -- "$OutFile"????? "$OutFile" 2>$NullDevice | head -1`
-  logCount=`ls -r1 -- "$OutFile"????? "$OutFile" 2>$NullDevice | head -1 | cut -c $fileLen-`
-  if [ -z "$logCount" ]; then
-    logCount=0
-  fi
-  if [ "x$logCount" = "x99999" ]; then
-    logCount=0
-  fi
+  logCount=`ls -r1 -- "$OutFile"????? fi
   logCount=`expr ${logCount} + 1`
   zeroPads=""
   case $logCount in
@@ -324,8 +321,6 @@ do_start() {
   cd -- "$CATALINA_BASE"
   # Now start the server and monitor loop
   start_and_monitor_server &
-  # Create server lock file
-  write_file "$LockFile" $!
   # Wait for server to start up
   while is_alive $! && server_not_yet_started; do
     sleep 1
@@ -338,6 +333,12 @@ do_start() {
 }
 
 start_and_monitor_server() {
+
+  # Create server lock file
+  pid=`exec sh -c 'ps -o ppid -p $$|sed '1d''`
+  write_file "$LockFile" $pid
+  exec 3>>"$LockFile"
+
   trap "rm -f -- \"$LockFile\"" 0
   trap "exec >>\"$OutFile\" 2>&1" 1
   # Disconnect input and redirect stdout/stderr to server output log
