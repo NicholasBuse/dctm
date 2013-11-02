@@ -843,8 +843,14 @@ OutFile=$JBOSS_HOME/server/$ServerName/log/$ServerName.out
 PidFile=$JBOSS_HOME/server/$ServerName/nodemanager/$ServerName.pid
 LockFile=$JBOSS_HOME/server/$ServerName/nodemanager/$ServerName.lck
 StateFile=$JBOSS_HOME/server/$ServerName/nodemanager/$ServerName.state
-RestartInterval=10
-LogRotateSize=1073741824
+
+if [ "x$RestartInterval" = "x" ]; then
+  RestartInterval=10
+fi
+
+if [ "x$LogRotateSize" = "x" ]; then
+  LogRotateSize=1073741824
+fi
 
 do_command
 

@@ -773,8 +773,14 @@ OutFile=$CATALINA_BASE/log/catalina.out
 PidFile=$CATALINA_BASE/nodemanager/catalina.pid
 LockFile=$CATALINA_BASE/nodemanager/catalina.lck
 StateFile=$CATALINA_BASE/nodemanager/catalina.state
-RestartInterval=10
-LogRotateSize=1073741824
+
+if [ "x$RestartInterval" = "x" ]; then
+  RestartInterval=10
+fi
+
+if [ "x$LogRotateSize" = "x" ]; then
+  LogRotateSize=1073741824
+fi
 
 do_command
 
