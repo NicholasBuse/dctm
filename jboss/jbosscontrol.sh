@@ -277,7 +277,7 @@ save_log() {
   fileLen=`expr ${fileLen} + 1`
   lastLog=`ls -r1 -- "$OutFile"????? "$OutFile" 2>$NullDevice | head -1`
   logCount=`ls -r1 -- "$OutFile"????? "$OutFile" 2>$NullDevice | head -1 | cut -c $fileLen-`
-  if [ -z "$logCount" ]; then
+  if [ "x$logCount" = "x" ]; then
     logCount=0
   fi
   if [ "x$logCount" = "x99999" ]; then

@@ -245,7 +245,13 @@ save_log() {
   fileLen=`echo "${OutFile}" | wc -c`
   fileLen=`expr ${fileLen} + 1`
   lastLog=`ls -r1 -- "$OutFile"????? "$OutFile" 2>$NullDevice | head -1`
-  logCount=`ls -r1 -- "$OutFile"????? fi
+  logCount=`ls -r1 -- "$OutFile"????? "$OutFile" 2>$NullDevice | head -1 | cut -c $fileLen-`
+  if [ "x$logCount" = "x" ]; then
+    logCount=0
+  fi
+  if [ "x$logCount" = "x99999" ]; then
+    logCount=0
+  fi
   logCount=`expr ${logCount} + 1`
   zeroPads=""
   case $logCount in
