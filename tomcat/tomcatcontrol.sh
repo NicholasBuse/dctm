@@ -55,9 +55,9 @@ print_err() {
 }
 
 ###############################################################################
-# Force kill tomcat pid                                                       #
+# reads java pid to $svrv_pid variable
 ###############################################################################
-force_kill() {
+read_java_pid() {
   # Check for pid file
   read_file "$PidFile"
 
@@ -69,51 +69,47 @@ force_kill() {
   monitor_is_running
 
   if [ "x$?" != "x0" -a "x$srvr_pid" = "x" ]; then
-    echo "Tomcat is not currently running" >&2
     return 1
   fi
 
   # Check for pid file
   if [ "x$srvr_pid" = "x" ]; then
-    echo "Could not kill server process (pid file not found)." >&2
     return 1
   fi
 
   if is_alive $srvr_pid; then
-    kill -9 $srvr_pid
+    return 0
   fi
 
+  return 1
+}
+
+###############################################################################
+# Force kill tomcat pid                                                       #
+###############################################################################
+force_kill() {
+  read_java_pid
+  if [ "x$?" = "x0" -a "x$srvr_pid" != "x" ]; then
+    kill -9 $srvr_pid
+    return $?
+  else
+    echo "Jboss is not currently running" >&2
+    return 1
+  fi
 }
 
 ###############################################################################
 # Makes thread dump of the running java process.                              #
 ###############################################################################
 make_thread_dump() {
-  # Check for pid file
-  read_file "$PidFile"
-
-  if [ "x$?" = "x0" ]; then
-    srvr_pid=$REPLY
-  fi
-
-  # Make sure server is started
-  monitor_is_running
-
-  if [ "x$?" != "x0" -a "x$srvr_pid" = "x" ]; then
-    echo "Tomcat is not currently running" >&2
-    return 1
-  fi
-
-  # Check for pid file
-  if [ "x$srvr_pid" = "x" ]; then
-    echo "Could not kill server process (pid file not found)." >&2
-    return 1
-  fi
-
-  if is_alive $srvr_pid; then
+  read_java_pid
+  if [ "x$?" = "x0" -a "x$srvr_pid" != "x" ]; then
     kill -3 $srvr_pid
+    return $?
+  else
+    echo "Jboss is not currently running" >&2
+    return 1
   fi
-
 }
 
 ###############################################################################
@@ -121,8 +117,13 @@ make_thread_dump() {
 ###############################################################################
 list_thread_dump() {
   make_thread_dump
-  sleep 1
-  less +"?Full thread dump Java HotSpot" -- "$OutFile"
+  if [ "x$?" = "x0" ]; then
+    sleep 1
+    less +"?Full thread dump Java HotSpot" -- "$OutFile"
+  else
+    echo "Jboss is not currently running" >&2
+    return 1
+  fi
 }
 
 ###############################################################################
@@ -281,6 +282,37 @@ start_log_rotate() {
   done
 }
 
+###############################################################################
+# Detect deadlocks
+###############################################################################
+start_deadlock_detection() {
+  while true; do
+    sleep $DeadlockDetectionInterval
+    check_deadlock
+    if [ "x$?" = "x0" ]; then
+      print_info "Found deadlock"
+      make_thread_dump
+      force_kill
+    fi
+  done
+}
+
+###############################################################################
+# Checks whether java process has a deadlock                                  #
+###############################################################################
+check_deadlock() {
+  if [ ! -x "$JAVA_HOME/bin/jstack" ]; then
+    return 1
+  fi
+
+  read_java_pid
+  if [ "x$?" = "x0" -a "x$srvr_pid" != "x" ]; then
+    jstack $srvr_pid | grep 'Found .* Java-level deadlock' > $NullDevice 2>&1
+    return $?
+  fi
+
+  return 1
+}
 
 ###############################################################################
 # Make sure server directory exists and is valid.                             #
@@ -359,15 +391,29 @@ start_and_monitor_server() {
     count=`expr ${count} + 1`
     update_base_time
 
-    start_log_rotate &
-    rotate_pid=$!
-    print_info "Starting log rotating, pid $rotate_pid"
+    if [ "x$LogRotateSize" != "x0" ]; then
+      start_log_rotate &
+      rotate_pid=$!
+      print_info "Starting log rotating, pid $rotate_pid"
+    fi
+
+    if [ "x$DeadlockDetectionInterval" != "x0" ]; then
+      start_deadlock_detection &
+      dd_pid=$!
+      print_info "Starting deadlock detection, pid $dd_pid"
+    fi
 
     start_server_script
     
-    print_info "Killing log rotating, pid $rotate_pid"
-    killtree $rotate_pid
-    read_file "$StateFile"
+    if [ "x$rotate_pid" != "x" ]; then
+      print_info "Killing log rotating, pid $rotate_pid"
+      killtree $rotate_pid
+    fi
+
+    if [ "x$dd_pid" != "x" ]; then
+      print_info "Killing deadlock detection, pid $dd_pid"
+      killtree $dd_pid
+    fi
 
     case $REPLY in
       *:N:*)
@@ -786,6 +832,10 @@ fi
 
 if [ "x$LogRotateSize" = "x" ]; then
   LogRotateSize=1073741824
+fi
+
+if [ "x$DeadlockDetectionInterval" = "x" ]; then
+  DeadlockDetectionInterval=300
 fi
 
 do_command

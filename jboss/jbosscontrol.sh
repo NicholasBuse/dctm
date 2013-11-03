@@ -437,12 +437,12 @@ start_and_monitor_server() {
 
     start_server_script
     
-    if [ "x$LogRotateSize" != "x0" ]; then
+    if [ "x$rotate_pid" != "x" ]; then
       print_info "Killing log rotating, pid $rotate_pid"
       killtree $rotate_pid
     fi
 
-    if [ "x$DeadlockDetectionInterval" != "x0" ]; then
+    if [ "x$dd_pid" != "x" ]; then
       print_info "Killing deadlock detection, pid $dd_pid"
       killtree $dd_pid
     fi
