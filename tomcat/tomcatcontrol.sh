@@ -66,22 +66,15 @@ read_java_pid() {
   fi
 
   # Make sure server is started
-  monitor_is_running
-
-  if [ "x$?" != "x0" -a "x$srvr_pid" = "x" ]; then
+  if ! monitor_is_running; then
     return 1
   fi
 
-  # Check for pid file
-  if [ "x$srvr_pid" = "x" ]; then
+  if ! java_is_running; then
     return 1
   fi
 
-  if is_alive $srvr_pid; then
-    return 0
-  fi
-
-  return 1
+  return 0
 }
 
 ###############################################################################
@@ -174,6 +167,21 @@ monitor_is_running() {
     fi
   fi
   rm -f -- "$LockFile"
+  return 1
+}
+
+###############################################################################
+# Returns true if the java is running otherwise false. Also will remove       #
+# the pid file if it is no longer valid.                                      #
+###############################################################################
+java_is_running() {
+  if read_file "$PidFile" && is_alive $REPLY; then
+    /sbin/fuser -- "$PidFile" > $NullDevice 2>&1
+    if [ "x$?" = "x0" ]; then
+      return 0
+    fi
+  fi
+  rm -f -- "$PidFile"
   return 1
 }
 
@@ -345,7 +353,7 @@ do_start() {
   fi
   # If monitor is not running, but if we can determine that the Tomcat
   # process is running, then say that server is already running.
-  if read_file "$PidFile" && is_alive $REPLY; then
+  if java_is_running; then
     echo "Tomcat has already been started" >&2
     return 1
   fi
@@ -415,6 +423,7 @@ start_and_monitor_server() {
       killtree $dd_pid
     fi
 
+    read_file "$StateFile"
     case $REPLY in
       *:N:*)
         print_err "Server startup failed (will not be restarted)"
@@ -462,6 +471,8 @@ start_server_script() {
      pid=`exec sh -c 'ps -o ppid -p $$|sed '1d''`
 
      write_file "$PidFile" $pid
+     exec 3>>"$PidFile"
+
      exec $CommandName $CommandArgs 2>&1) | (
      trap "exec >>\"$OutFile\" 2>&1" 1
      IFS=""; while read line; do
@@ -686,7 +697,7 @@ do_stat() {
 
   if monitor_is_running; then
     valid_state=1
-  elif read_file "$PidFile" && is_alive $REPLY; then
+  elif java_is_running; then
     valid_state=1
   fi
 
