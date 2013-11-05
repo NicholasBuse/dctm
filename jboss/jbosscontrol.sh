@@ -685,7 +685,7 @@ echo $CommandArgs
 ###############################################################################
 do_kill() {
   read_java_pid
-  if [ "x$?" = "x0" -a "x$srvr_pid" != "x" ]; then
+  if [ "x$?" != "x0" -o "x$srvr_pid" = "x" ]; then
     echo "Jboss is not currently running" >&2
     return 1
   fi
