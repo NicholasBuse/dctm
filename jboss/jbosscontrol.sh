@@ -97,22 +97,15 @@ read_java_pid() {
   fi
 
   # Make sure server is started
-  monitor_is_running
-
-  if [ "x$?" != "x0" -a "x$srvr_pid" = "x" ]; then
+  if ! monitor_is_running; then
     return 1
   fi
 
-  # Check for pid file
-  if [ "x$srvr_pid" = "x" ]; then
+  if ! java_is_running; then
     return 1
   fi
 
-  if is_alive $srvr_pid; then
-    return 0
-  fi
-
-  return 1
+  return 0
 }
 
 ###############################################################################
@@ -205,6 +198,21 @@ monitor_is_running() {
     fi
   fi
   rm -f -- "$LockFile"
+  return 1
+}
+
+###############################################################################
+# Returns true if the java is running otherwise false. Also will remove       #
+# the pid file if it is no longer valid.                                      #
+###############################################################################
+java_is_running() {
+  if read_file "$PidFile" && is_alive $REPLY; then
+    /sbin/fuser -- "$PidFile" > $NullDevice 2>&1
+    if [ "x$?" = "x0" ]; then
+      return 0
+    fi
+  fi
+  rm -f -- "$PidFile"
   return 1
 }
 
@@ -377,7 +385,7 @@ do_start() {
   fi
   # If monitor is not running, but if we can determine that the Jboss
   # process is running, then say that server is already running.
-  if read_file "$PidFile" && is_alive $REPLY; then
+  if java_is_running; then
     echo "Jboss has already been started" >&2
     return 1
   fi
@@ -495,6 +503,8 @@ start_server_script() {
      pid=`exec sh -c 'ps -o ppid -p $$|sed '1d''`
 
      write_file "$PidFile" $pid
+     exec 3>>"$PidFile"
+
      exec $CommandName $CommandArgs 2>&1) | (
      trap "exec >>\"$OutFile\" 2>&1" 1
      IFS=""; while read line; do
@@ -674,48 +684,27 @@ echo $CommandArgs
 # was not running or could not be killed.                                     #
 ###############################################################################
 do_kill() {
-  # Check for pid file
-  read_file "$PidFile"
-
-  if [ "x$?" = "x0" ]; then
-    srvr_pid=$REPLY
-  fi
-
-  # Make sure server is started
-  monitor_is_running
-
-  if [ "x$?" != "x0" -a "x$srvr_pid" = "x" ]; then
+  read_java_pid
+  if [ "x$?" = "x0" -a "x$srvr_pid" != "x" ]; then
     echo "Jboss is not currently running" >&2
     return 1
   fi
 
-  # Check for pid file
-  if [ "x$srvr_pid" = "x" ]; then
-    echo "Could not kill server process (pid file not found)." >&2
-    return 1
+  # Kill the server process
+  write_state SHUTTING_DOWN:Y:N
+  kill $srvr_pid
+
+  # Now wait for up to 60 seconds for monitor to die
+  count=0
+  while [ $count -lt 60 ] && monitor_is_running; do
+    sleep 1
+    count=`expr ${count} + 1`
+  done
+  if monitor_is_running; then
+    write_state FORCE_SHUTTING_DOWN:Y:N
+    echo "Server process did not terminate in 60 seconds after being signaled to terminate, killing" 2>&1
+    kill -9 $srvr_pid
   fi
-
-  if is_alive $srvr_pid; then
-    # Kill the server process
-    write_state SHUTTING_DOWN:Y:N
-    kill $srvr_pid
-
-    # Now wait for up to 60 seconds for monitor to die
-    count=0
-    while [ $count -lt 60 ] && monitor_is_running; do
-      sleep 1
-      count=`expr ${count} + 1`
-    done
-    if monitor_is_running; then
-      write_state FORCE_SHUTTING_DOWN:Y:N
-      echo "Server process did not terminate in 60 seconds after being signaled to terminate, killing" 2>&1
-      kill -9 $srvr_pid
-    fi
-  else
-    echo "Could not kill server process (process does not exists)." >&2
-    return 1
-  fi
-
 }
 
 do_stat() {
@@ -732,7 +721,7 @@ do_stat() {
 
   if monitor_is_running; then
     valid_state=1
-  elif read_file "$PidFile" && is_alive $REPLY; then
+  elif java_is_running; then
     valid_state=1
   fi
 
@@ -757,19 +746,19 @@ do_stat() {
       ;;
     esac
 
-       if [ "x$cleanup" = "xY" ]; then
-          if server_is_started; then
-            write_state $state:Y:N
-          else
-            write_state $state:N:N
-          fi
-       fi
+    if [ "x$cleanup" = "xY" ]; then
+      if server_is_started; then
+        write_state $state:Y:N
+      else
+        write_state $state:N:N
+      fi
+    fi
   fi
 
   if  [ "x$InternalStatCall" = "xY" ]; then
-       ServerState=$state
+    ServerState=$state
   else
-       echo $state
+    echo $state
   fi
 }
 
