@@ -100,6 +100,13 @@ def query(session, query, forUpdate, batchHint, bofDql):
     return obj
 
 
+def sqlQuery(session, query, batchHint):
+    obj = TypedObject(session=session)
+    obj.add(AttrValue(name="QUERY", type=STRING, values=[query]))
+    obj.add(AttrValue(name="BATCH_HINT", type=INT, values=[batchHint]))
+    return obj
+
+
 def folderByPath(session, path):
     obj = TypedObject(session=session)
     obj.add(AttrValue(name="_FOLDER_PATH_", type=STRING, values=[path]))

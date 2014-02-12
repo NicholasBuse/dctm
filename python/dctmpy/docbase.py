@@ -393,4 +393,5 @@ KNOWN_ENTRY_POINTS = {
     'EXEC': (Docbase.asCollection, Collection),
     'TIME': (Docbase.asTime, TypedObject),
     'COUNT_SESSIONS': (Docbase.asObject, TypedObject),
+    'EXEC_SELECT_SQL': (Docbase.asCollection, Collection),
 }
