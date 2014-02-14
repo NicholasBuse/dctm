@@ -3,8 +3,8 @@
 #  See main module for license.
 #
 from dctmpy import *
-from dctmpy.docbase import Docbase
-from dctmpy.docbroker import Docbroker
+from dctmpy.docbaseclient import DocbaseClient
+from dctmpy.docbrokerclient import DocbrokerClient
 
 
 JOB_ATTRIBUTES = ['object_name', 'is_inactive', 'a_last_invocation',
@@ -36,7 +36,7 @@ def checkProjectionTargets(session):
 
 
 def checkRegistration(host, port, docbasename, servername=None, checkall=True):
-    return checkRegistration(Docbroker(host=host, port=port), docbasename, servername, checkall)
+    return checkRegistration(DocbrokerClient(host=host, port=port), docbasename, servername, checkall)
 
 
 def checkRegistration(docbroker, docbasename, servername=None, checkall=True):
@@ -66,7 +66,7 @@ def checkRegistration(docbroker, docbasename, servername=None, checkall=True):
             port = int(chunks[2], 16)
             session = None
             try:
-                session = Docbase(host=host, port=port, docbaseid=docbaseid)
+                session = DocbaseClient(host=host, port=port, docbaseid=docbaseid)
                 message += "%s.%s has status %s on %s, " % (
                     docbasename, srv, status, parseAddr(servermap['i_host_addr']))
             except Exception, e:
@@ -149,7 +149,7 @@ def checkActiveSessions(session, warn=0, crit=0, warnpct=0, critpct=0):
 
 def checkProjectionTargets(host, port, docbaseid, username, password):
     return checkProjectionTargets(
-        Docbase(host=host, port=port, docbaseid=docbaseid, username=username, password=password))
+        DocbaseClient(host=host, port=port, docbaseid=docbaseid, username=username, password=password))
 
 
 def checkProjectionTargets(session):
@@ -159,7 +159,7 @@ def checkProjectionTargets(session):
     success = True
     for (host, port) in getServerTargets(session):
         try:
-            docbroker = Docbroker(host=host, port=port)
+            docbroker = DocbrokerClient(host=host, port=port)
             servermap = docbroker.getServerMap(docbasename)
             if not servername in servermap['r_server_name']:
                 message += "not registered on %s, " % (parseAddr(servermap['i_host_addr']))
