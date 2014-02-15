@@ -40,9 +40,9 @@ class CheckDocbase(nagiosplugin.Resource):
                 return
             if self.mode == 'login':
                 return
-            result = modes[self.mode][0](self)
-            if result:
-                yield result
+            for result in modes[self.mode][0](self):
+                if result:
+                    yield result
         finally:
             try:
                 if self.session:
@@ -56,7 +56,7 @@ class CheckDocbase(nagiosplugin.Resource):
         except Exception, e:
             self.addResult(Critical, "Unable to retrieve session count: " + str(e))
             return
-        return nagiosplugin.Metric('sessioncount', count['hot_list_size'])
+        return nagiosplugin.Metric('sessioncount', count['hot_list_size'], min=0, context='sessioncount')
 
     def checkTargets(self):
         targets = []
@@ -150,14 +150,11 @@ class CheckDocbase(nagiosplugin.Resource):
 
     def checkJobs(self):
         jobstocheck = None
-        if self.jobs is not None:
+        if not isEmpty(self.jobs):
             if isinstance(self.jobs, list):
                 jobstocheck = list(self.jobs)
             elif isinstance(self.jobs, str):
-                if len(self.jobs) == 0:
-                    pass
-                else:
-                    jobstocheck = re.split(",\s*", self.jobs)
+                jobstocheck = re.split(",\s*", self.jobs)
             else:
                 raise RuntimeError("Wrong jobs argument")
         now = self.session.TIME()
@@ -261,7 +258,7 @@ class CheckDocbase(nagiosplugin.Resource):
                 message = "Scheduling type for job %s is not currently supported" % name
                 self.addResult(Critical, message)
                 continue
-        if jobstocheck is not None and len(jobstocheck) > 0:
+        if not isEmpty(jobstocheck):
             message = ""
             for job in jobstocheck:
                 message += "%s not found, " % job
@@ -278,13 +275,72 @@ class CheckDocbase(nagiosplugin.Resource):
         ''
 
     def checkWorkQueue(self):
-        ''
+        query = "SELECT count(r_object_id) AS work_queue_size FROM dmi_workitem " \
+                "WHERE r_runtime_state IN (0, 1) " \
+                "AND r_auto_method_id > '0000000000000000' " \
+                "AND a_wq_name is NULLSTRING"
+        collection = None
+        try:
+            collection = self.session.query(query)
+            result = collection.nextRecord()
+            return nagiosplugin.Metric('workqueue', result['work_queue_size'], min=0, context='workqueue')
+        except Exception, e:
+            message = "Unable to execute query: %s" % str(e)
+            self.addResult(Critical, message)
+        finally:
+            try:
+                if collection is not None:
+                    collection.close()
+            except Exception, e:
+                pass
 
     def checkServerWorkQueue(self):
-        ''
+        serverid = self.session.serverconfig['r_object_id']
+        servername = self.session.serverconfig['object_name']
+        query = "SELECT count(r_object_id) AS work_queue_size FROM dmi_workitem " \
+                "WHERE r_runtime_state IN (0, 1) " \
+                "AND r_auto_method_id > '0000000000000000' " \
+                "AND a_wq_name ='" + serverid + "'"
+        collection = None
+        try:
+            collection = self.session.query(query)
+            result = collection.nextRecord()
+            return nagiosplugin.Metric(servername, result['work_queue_size'], min=0, context='serverworkqueue')
+        except Exception, e:
+            message = "Unable to execute query: %s" % str(e)
+            self.addResult(Critical, message)
+        finally:
+            try:
+                if collection is not None:
+                    collection.close()
+            except Exception, e:
+                pass
 
     def checkFulltextQueue(self):
-        ''
+        users = []
+        for u in self.session.query("select distinct queue_user from dm_ftindex_agent_config"):
+            users.append(u['queue_user'])
+        if isEmpty(users):
+            self.addResult(Warn, "No fulltext")
+            return
+        for username in users:
+            query = "SELECT count(r_object_id) AS queue_size FROM dmi_queue_item WHERE name='" \
+                    + username + "'AND task_state not in ('failed','warning')"
+            collection = None
+            try:
+                collection = self.session.query(query)
+                result = collection.nextRecord()
+                yield nagiosplugin.Metric(username, result['queue_size'], min=0, context='indexqueue')
+            except Exception, e:
+                message = "Unable to execute query: %s" % str(e)
+                self.addResult(Critical, message)
+                continue
+            finally:
+                try:
+                    if collection is not None:
+                        collection.close()
+                except Exception, e:
+                    pass
 
     def checkFailedTasks(self):
         ''
@@ -339,9 +395,32 @@ class CheckSummary(nagiosplugin.Summary):
     def format(self, results):
         message = ""
         for state in [Ok, Unknown, Warn, Critical]:
-            hint = ", ".join(result.hint for result in results if result.state == state and result.hint is not None)
-            message = ", ".join(x for x in [hint, message] if x is not None and len(x) > 0)
+            hint = ", ".join(str(result) for result in results if result.state == state and not isEmpty(result.hint))
+            message = ", ".join(x for x in [hint, message] if not isEmpty(x))
         return message
+
+
+def isEmpty(value):
+    if value is None:
+        return True
+    if isinstance(value, str):
+        if len(value) == 0:
+            return True
+        elif value.isspace():
+            return True
+        else:
+            return False
+    if isinstance(value, list):
+        if len(value) == 0:
+            return True
+        else:
+            return False
+    if isinstance(value, dict):
+        if len(value) == 0:
+            return True
+        else:
+            return False
+    return False
 
 
 def getIndexes(session):
