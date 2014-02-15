@@ -340,11 +340,7 @@ class CheckSummary(nagiosplugin.Summary):
         message = ""
         for state in [Ok, Unknown, Warn, Critical]:
             hint = ", ".join(result.hint for result in results if result.state == state and result.hint is not None)
-            if len(hint) > 0:
-                if len(message) > 0:
-                    message = hint + ", " + message
-                else:
-                    message = hint
+            message = ", ".join(x for x in [hint, message] if x is not None and len(x) > 0)
         return message
 
 
