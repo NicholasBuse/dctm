@@ -36,7 +36,7 @@ class DocbaseClient(Netwise):
             self.iso8601time = False
         if self.session is None:
             self.session = NULL_ID
-        if self.docbaseid is None:
+        if self.docbaseid is None or self.docbaseid == -1:
             self.resolveDocbaseId()
         if self.messages is None:
             self.messages = []

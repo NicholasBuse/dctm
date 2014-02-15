@@ -13,14 +13,22 @@ class CheckDocbase(nagiosplugin.Resource):
         self.session = None
 
     def probe(self):
-        #fake metric
         yield nagiosplugin.Metric("null", 0, "null")
-        self.checkLogin()
-        if not self.session:
-            return
-        result = modes[self.mode][0](self)
-        if result:
-            yield result
+        try:
+            self.checkLogin()
+            if not self.session:
+                return
+            if self.mode == 'login':
+                return
+            result = modes[self.mode][0](self)
+            if result:
+                yield result
+        finally:
+            try:
+                if self.session:
+                    self.session.disconnect()
+            except Exception, e:
+                pass
 
     def checkSessions(self):
         try:
@@ -29,7 +37,6 @@ class CheckDocbase(nagiosplugin.Resource):
             self.addResult(Critical, "Unable to retrieve session count: " + str(e))
             return
         return nagiosplugin.Metric('sessioncount', count['hot_list_size'])
-
 
     def checkTargets(self):
         targets = []
@@ -98,7 +105,6 @@ class CheckDocbase(nagiosplugin.Resource):
                     except Exception, e:
                         pass
 
-
     def checkIndexAgents(self):
         count = 0
         for index in getIndexes(self.session):
@@ -112,7 +118,7 @@ class CheckDocbase(nagiosplugin.Resource):
                 self.addResult(Ok, message)
             elif status == 100:
                 message = "Indexagent %s/%s is stopped" % (index['index_name'], index['object_name'])
-                self.addResult(Warning, message)
+                self.addResult(Warn, message)
             elif status == 200:
                 message = "A problem with indexagent %s/%s" % (index['index_name'], index['object_name'])
                 self.addResult(Critical, message)
@@ -148,14 +154,14 @@ class CheckDocbase(nagiosplugin.Resource):
 
     def checkLogin(self):
         try:
-            session = DocbaseClient(host="192.168.2.49", port=10000)
+            session = DocbaseClient(host=self.host, port=self.port, docbaseid=self.docbaseid)
         except Exception, e:
             message = "Unable to connect to docbase: %s" % str(e)
             self.addResult(Critical, message)
             return
         if self.username and self.password:
             try:
-                session.authenticate(self.username, self.password)
+                session.authenticate(self.username, self.secret)
             except Exception, e:
                 message = "Unable to authenticate: %s" % str(e)
                 self.addResult(Critical, message)
@@ -163,9 +169,15 @@ class CheckDocbase(nagiosplugin.Resource):
             self.session = session
         else:
             if not self.password:
-                self.addResult(Warn, "No password provided")
+                if self.mode != 'login':
+                    self.addResult(Warn, "No password provided")
+                else:
+                    self.addResult(Critical, "No password provided")
             else:
-                self.addResult(Warn, "No username provided")
+                if self.mode != 'login':
+                    self.addResult(Warn, "No username provided")
+                else:
+                    self.addResult(Critical, "No username provided")
 
     def addResult(self, state, message):
         self.results.add(nagiosplugin.Result(state, message))
@@ -208,13 +220,13 @@ modes = {
 @nagiosplugin.guarded
 def main():
     argp = argparse.ArgumentParser(description=__doc__)
-    argp.add_argument('-H', '--host', metavar='string', default='', help='server hostname')
-    argp.add_argument('-p', '--port', metavar='int', default='', help='server port')
-    argp.add_argument('-i', '--docbaseid', metavar='int', default='', help='docbase identifier')
-    argp.add_argument('-u', '--username', metavar='string', default='', help='username')
-    argp.add_argument('-s', '--password', metavar='string', default='', help='password')
-    argp.add_argument('-t', '--timeout', metavar='int', default='', help='check timeout')
-    argp.add_argument('-m', '--mode', metavar='string', default='',
+    argp.add_argument('-H', '--host', required=True, metavar='hostname', help='server hostname')
+    argp.add_argument('-p', '--port', required=True, metavar='port', type=int, help='server port')
+    argp.add_argument('-i', '--docbaseid', required=True, metavar='docbaseid', type=int, help='docbase identifier')
+    argp.add_argument('-u', '--username', metavar='username', help='username')
+    argp.add_argument('-s', '--secret', metavar='password', help='password')
+    argp.add_argument('-t', '--timeout', metavar='timeout', default=60, type=int, help='check timeout')
+    argp.add_argument('-m', '--mode', required=True, metavar='mode',
                       help="check to use, any of: " + "; ".join(x + " - " + modes[x][2] for x in modes.keys()))
     for mode in modes.keys():
         if not modes[mode][1]:
@@ -225,6 +237,7 @@ def main():
                           help='<critical range for ' + mode + ' check>')
     args = argp.parse_args()
     check = nagiosplugin.Check()
+    check.name = args.mode
     check.add(CheckDocbase(args, check.results))
     for mode in modes.keys():
         if not modes[mode][1]:
