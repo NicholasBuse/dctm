@@ -33,7 +33,7 @@ class CheckDocbase(nagiosplugin.Resource):
         self.session = None
 
     def probe(self):
-        yield nagiosplugin.Metric("null", 0, "null")
+        yield nagiosplugin.Metric("null", 0, context='null')
         try:
             self.checkLogin()
             if not self.session:
@@ -59,7 +59,8 @@ class CheckDocbase(nagiosplugin.Resource):
         except Exception, e:
             self.addResult(Critical, "Unable to retrieve session count: " + str(e))
             return
-        return nagiosplugin.Metric('sessioncount', count['hot_list_size'], min=0, context='sessioncount')
+        yield nagiosplugin.Metric('sessioncount', count['hot_list_size'], min=0, max=count['concurrent_sessions'],
+                                  context='sessioncount')
 
     def checkTargets(self):
         targets = []
@@ -271,7 +272,7 @@ class CheckDocbase(nagiosplugin.Resource):
                 "AND a_wq_name is NULLSTRING"
         try:
             result = readObject(self.session, query)
-            return nagiosplugin.Metric('workqueue', result['work_queue_size'], min=0, context='workqueue')
+            yield nagiosplugin.Metric('workqueue', result['work_queue_size'], min=0, context='workqueue')
         except Exception, e:
             message = "Unable to execute query: %s" % str(e)
             self.addResult(Critical, message)
@@ -285,7 +286,7 @@ class CheckDocbase(nagiosplugin.Resource):
                 "AND a_wq_name ='" + serverid + "'"
         try:
             result = readObject(self.session, query)
-            return nagiosplugin.Metric(servername, result['work_queue_size'], min=0, context='serverworkqueue')
+            yield nagiosplugin.Metric(servername, result['work_queue_size'], min=0, context='serverworkqueue')
         except Exception, e:
             message = "Unable to execute query: %s" % str(e)
             self.addResult(Critical, message)
