@@ -2,8 +2,8 @@
 import argparse
 import nagiosplugin
 from nagiosplugin.state import Critical, Warn, Ok, Unknown
-from docbaseclient import DocbaseClient
-from docbrokerclient import DocbrokerClient
+from dctmpy.docbaseclient import DocbaseClient
+from dctmpy.docbrokerclient import DocbrokerClient
 
 
 class CheckDocbase(nagiosplugin.Resource):

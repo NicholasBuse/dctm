@@ -75,7 +75,9 @@ def serializeIntegerArray(intarray):
 
 
 def serializeValue(value):
-    if isinstance(value, str):
+    if value is None:
+        return serializeString("")
+    elif isinstance(value, str):
         return serializeString(value)
     elif isinstance(value, int):
         return serializeInteger(value)
@@ -83,8 +85,8 @@ def serializeValue(value):
         return serializeIntegerArray(value)
     elif isinstance(value, TypedObject):
         return serializeString(value.serialize())
-    elif value is None:
-        return serializeString("")
+    elif hasattr(value.__class__, "serialize"):
+        return serializeString(value.serialize())
     else:
         raise TypeError("Invalid argument type")
 

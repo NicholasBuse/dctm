@@ -5,7 +5,7 @@
 from dctmpy import parseAddr, AttrValue, STRING, INT
 from dctmpy.netwise import Netwise
 from dctmpy.obj.docbroker import DocbaseMap
-from obj.typedobject import TypedObject
+from dctmpy.obj.typedobject import TypedObject
 
 NETWISE_VERSION = 1
 NETWISE_RELEASE = 0
