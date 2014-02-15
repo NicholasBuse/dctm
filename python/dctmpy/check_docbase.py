@@ -1,9 +1,29 @@
 #!python
 import argparse
+import re
 import nagiosplugin
 from nagiosplugin.state import Critical, Warn, Ok, Unknown
 from dctmpy.docbaseclient import DocbaseClient
 from dctmpy.docbrokerclient import DocbrokerClient
+
+JOB_ATTRIBUTES = ['object_name', 'is_inactive', 'a_last_invocation',
+                  'a_last_completion', 'a_last_return_code', 'a_current_status',
+                  'a_status', 'a_special_app', 'run_mode', 'run_interval',
+                  'expiration_date', 'max_iterations', 'a_iterations',
+                  'a_next_invocation', 'start_date', 'a_current_status']
+
+JOB_QUERY = "SELECT " + ", ".join(JOB_ATTRIBUTES) + " FROM dm_job WHERE 1=1 "
+
+JOB_ACTIVE_CONDITION = " AND ((a_last_invocation IS NOT NULLDATE and a_last_completion IS NULLDATE) OR a_special_app = 'agentexec')" \
+                       " AND (i_is_reference = 0 OR i_is_reference is NULL)" \
+                       " AND (i_is_replica = 0 OR i_is_replica is NULL)"
+
+JOB_INTERVALS = {
+    1: 60,
+    2: 60 * 60,
+    3: 24 * 60 * 60,
+    4: 7 * 24 * 60 * 60
+}
 
 
 class CheckDocbase(nagiosplugin.Resource):
@@ -129,7 +149,124 @@ class CheckDocbase(nagiosplugin.Resource):
             self.addResult(Warn, "No indexagents configured")
 
     def checkJobs(self):
-        ''
+        jobstocheck = None
+        if self.jobs is not None:
+            if isinstance(self.jobs, list):
+                jobstocheck = list(self.jobs)
+            elif isinstance(self.jobs, str):
+                if len(self.jobs) == 0:
+                    pass
+                else:
+                    jobstocheck = re.split(",\s*", self.jobs)
+            else:
+                raise RuntimeError("Wrong jobs argument")
+        now = self.session.TIME()
+        for job in getJobs(self.session, jobstocheck):
+            name = job['object_name']
+            if jobstocheck is not None and name in jobstocheck:
+                jobstocheck.remove(name)
+            start = job['start_date']
+            nextinvocation = job['a_next_invocation']
+            expire = job['expiration_date']
+            maxiterations = job['max_iterations']
+            mode = job['run_mode']
+            interval = job['run_interval']
+            inactive = job['is_inactive']
+            iterations = job['a_iterations']
+            lastinvocation = job['a_last_invocation']
+            lastcompletion = job['a_last_completion']
+            lastreturncode = job['a_last_return_code']
+            currentstatus = job['a_current_status']
+            specialapp = job['a_special_app']
+            if start is None or start <= 0:
+                message = "%s has undefined start_date" % name
+                self.addResult(Critical, message)
+                continue
+            if nextinvocation is None or nextinvocation <= 0:
+                message = "%s has undefined next_invocation_date" % name
+                self.addResult(Critical, message)
+                continue
+            if expire is not None and expire < start:
+                message = "%s has expiration_date less then start_date" % name
+                self.addResult(Critical, message)
+                continue
+            if maxiterations < 0:
+                message = "%s has invalid max_iterations value: %d" % (name, maxiterations)
+                self.addResult(Critical, message)
+                continue
+            if mode == 0 and interval == 0 and maxiterations != 1:
+                message = "%s has invalid max_iterations value for run_mode=0 and run_interval=0" % name
+                self.addResult(Critical, message)
+                continue
+            if mode in [1, 2, 3, 4] and (interval < 1 or interval > 32767):
+                message = "%s has invalid run_interval value, expected [1, 32767], got %d" % (
+                    name, interval)
+                self.addResult(Critical, message)
+                continue
+            if mode == 7 and (interval < -7 or interval > 7 or interval == 0):
+                message = "%s has invalid run_interval value, expected [-7,7], got %d" % (
+                    name, interval)
+                self.addResult(Critical, message)
+                continue
+            if mode == 8 and (interval < -28 or interval > 28 or interval == 0):
+                message = "%s has invalid run_interval value, expected [-28,0) U (0,28], got %d" % (
+                    name, interval)
+                self.addResult(Critical, message)
+                continue
+            if mode == 9 and (interval < -365 or interval > 365 or interval == 0):
+                message = "%s has invalid run_interval value, expected [-365,0) U (0,365], got %d" % (
+                    name, interval)
+                self.addResult(Critical, message)
+                continue
+            if inactive:
+                message = "%s is inactive" % name
+                self.addResult(Critical, message)
+                continue
+            if expire is not None and now > expire:
+                message = "%s is expired" % name
+                self.addResult(Critical, message)
+                continue
+            if 0 < maxiterations < iterations:
+                message = "%s max iterations exceeded" % name
+                self.addResult(Critical, message)
+                continue
+            if lastinvocation is None:
+                message = "%s has been never executed" % name
+                self.addResult(Warn, message)
+                continue
+            if lastreturncode != 0:
+                message = "%s has status: %s" % (name, currentstatus)
+                self.addResult(Critical, message)
+                continue
+            if re.search('agentexec', specialapp) is not None or (
+                        lastinvocation is not None and lastcompletion is None):
+                message = "%s is running for %s" % (name, prettyInterval(now - lastinvocation))
+                self.addResult(Ok, message)
+                continue
+
+            timegap = now - lastcompletion
+
+            if mode in [1, 2, 3, 4]:
+                message = "%s last run - %s ago" % (name, prettyInterval(timegap))
+                if timegap > 2 * JOB_INTERVALS[mode] * interval:
+                    self.addResult(Critical, message)
+                    continue
+                elif timegap > JOB_INTERVALS[mode] * interval:
+                    self.addResult(Warn, message)
+                    continue
+                else:
+                    self.addResult(Ok, message)
+                    continue
+            else:
+                message = "Scheduling type for job %s is not currently supported" % name
+                self.addResult(Critical, message)
+                continue
+        if jobstocheck is not None and len(jobstocheck) > 0:
+            message = ""
+            for job in jobstocheck:
+                message += "%s not found, " % job
+            self.addResult(Critical, message)
+
 
     def checkTimeSkew(self):
         ''
@@ -189,6 +326,28 @@ class CheckDocbase(nagiosplugin.Resource):
             return AttributeError
 
 
+class CheckSummary(nagiosplugin.Summary):
+    def verbose(self, results):
+        return ''
+
+    def ok(self, results):
+        return self.format(results)
+
+    def problem(self, results):
+        return self.format(results)
+
+    def format(self, results):
+        message = ""
+        for state in [Ok, Unknown, Warn, Critical]:
+            hint = ", ".join(result.hint for result in results if result.state == state and result.hint is not None)
+            if len(hint) > 0:
+                if len(message) > 0:
+                    message = hint + ", " + message
+                else:
+                    message = hint
+        return message
+
+
 def getIndexes(session):
     query = "select index_name, a.object_name " \
             "from dm_fulltext_index i, dm_ftindex_agent_config a " \
@@ -201,11 +360,36 @@ def runQuery(session, query):
     return ((lambda x: dict((attr, x[attr]) for attr in x))(e) for e in session.query(query))
 
 
+def getJobs(session, jobs=None, condition=""):
+    query = JOB_QUERY + condition
+    if jobs is not None:
+        query += " AND object_name IN ('" + "','".join(jobs) + "')"
+    return runQuery(session, query)
+
+
+def getRunningJobs(session):
+    return getJobs(session, JOB_ACTIVE_CONDITION)
+
+
+def prettyInterval(delta):
+    if delta >= 0:
+        secs = (delta) % 60
+        mins = (int((delta) / 60)) % 60
+        hours = (int((delta) / 3600))
+        if hours < 24:
+            return "%02d:%02d:%02d" % (hours, mins, secs)
+        else:
+            days = int(hours / 24)
+            hours -= days * 24
+            return "%d days %02d:%02d:%02d" % (days, hours, mins, secs)
+    return "future"
+
+
 modes = {
     'sessioncount': [CheckDocbase.checkSessions, True, "checks active session count"],
     'targets': [CheckDocbase.checkTargets, False, "checks whether server is registered on projection targets"],
     'indexagents': [CheckDocbase.checkIndexAgents, False, "checks index agent status"],
-    'jobs': [CheckDocbase.checkJobs, False, "checks jobs scheduling"],
+    'checkjobs': [CheckDocbase.checkJobs, False, "checks jobs scheduling"],
     'timeskew': [CheckDocbase.checkTimeSkew, True, "checks time skew between nagios host and documentum"],
     'query': [CheckDocbase.checkQuery, True, "checks results returned by query"],
     'countquery': [CheckDocbase.checkCountQuery, True, "checks results returned by query"],
@@ -228,6 +412,7 @@ def main():
     argp.add_argument('-t', '--timeout', metavar='timeout', default=60, type=int, help='check timeout')
     argp.add_argument('-m', '--mode', required=True, metavar='mode',
                       help="check to use, any of: " + "; ".join(x + " - " + modes[x][2] for x in modes.keys()))
+    argp.add_argument('-j', '--jobs', metavar='jobs', default='', help='jobs to check')
     for mode in modes.keys():
         if not modes[mode][1]:
             continue
@@ -236,7 +421,7 @@ def main():
         argp.add_argument("--" + mode + "-critical", metavar='RANGE', default='',
                           help='<critical range for ' + mode + ' check>')
     args = argp.parse_args()
-    check = nagiosplugin.Check()
+    check = nagiosplugin.Check(CheckSummary())
     check.name = args.mode
     check.add(CheckDocbase(args, check.results))
     for mode in modes.keys():
