@@ -22,6 +22,9 @@ class Collection(TypedObject):
         return False
 
     def nextRecord(self):
+        if self.collection is None:
+            return None
+
         if isEmpty(self.buffer) and (self.more is None or self.more):
             response = self.session.nextBatch(self.collection, self.batchsize)
             self.buffer = response.data
@@ -39,8 +42,10 @@ class Collection(TypedObject):
             finally:
                 if self.records is not None:
                     self.records -= 1
-
-        self.close()
+        try:
+            self.close()
+        except Exception, e:
+            pass
         return None
 
     def __iter__(self):
