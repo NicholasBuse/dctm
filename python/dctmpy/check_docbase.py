@@ -143,8 +143,13 @@ class CheckDocbase(nagiosplugin.Resource):
 
     def checkIndexAgents(self):
         try:
+            count = 0
             for index in getIndexes(self.session):
+                count += 1
                 self.checkIndexAgent(index['index_name'], index['object_name'])
+            if count == 0:
+                message = "No indexagents"
+                self.addResult(Warn, message)
         except Exception, e:
             message = "Unable to execute query: %s" % str(e)
             self.addResult(Critical, message)
@@ -168,7 +173,7 @@ class CheckDocbase(nagiosplugin.Resource):
                 message = "Indexagent %s/%s has unknown status" % (indexname, agentname)
                 self.addResult(Unknown, message)
         except Exception, e:
-            message = "Unable to query indexagent %s/%s status: %s" % (
+            message = "Unable to get indexagent %s/%s status: %s" % (
                 indexname, agentname, str(e))
             self.addResult(Critical, message)
 
@@ -330,18 +335,28 @@ class CheckDocbase(nagiosplugin.Resource):
             self.addResult(Critical, message)
 
     def checkFulltextQueue(self):
-        for user in readQuery(self.session, "select distinct queue_user from dm_ftindex_agent_config"):
-            query = "SELECT count(r_object_id) AS queue_size FROM dmi_queue_item WHERE name='" \
-                    + user['queue_user'] + "'AND task_state not in ('failed','warning')"
-            try:
-                result = readObject(self.session, query)
-                yield nagiosplugin.Metric(user['queue_user'][-20:], int(result['queue_size']), min=0,
-                                          context='indexqueue')
-            except Exception, e:
-                message = "Unable to execute query: %s" % str(e)
-                self.addResult(Critical, message)
-                continue
+        try:
+            count = 0
+            for user in readQuery(self.session, "select distinct queue_user from dm_ftindex_agent_config"):
+                count += 1
+                self.checkFulltextQueue(user['queue_user'])
+            if count == 0:
+                message = "No indexagents"
+                self.addResult(Warn, message)
+        except Exception, e:
+            message = "Unable to execute query: %s" % str(e)
+            self.addResult(Critical, message)
 
+    def checkFulltextQueue(self, username):
+        query = "SELECT count(r_object_id) AS queue_size FROM dmi_queue_item WHERE name='" \
+                + username + "'AND task_state not in ('failed','warning')"
+        try:
+            result = readObject(self.session, query)
+            yield nagiosplugin.Metric(username[-20:], int(result['queue_size']), min=0,
+                                      context='indexqueue')
+        except Exception, e:
+            message = "Unable to execute query: %s" % str(e)
+            self.addResult(Critical, message)
 
     def checkFailedTasks(self):
         ''
