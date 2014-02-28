@@ -346,7 +346,7 @@ check_deadlock() {
 
   read_java_pid
   if [ "x$?" = "x0" -a "x$srvr_pid" != "x" ]; then
-    jstack $srvr_pid | grep 'Found .* Java-level deadlock' > $NullDevice 2>&1
+    $JAVA_HOME/bin/jstack $srvr_pid | grep 'Found .* Java-level deadlock' > $NullDevice 2>&1
     return $?
   fi
 
