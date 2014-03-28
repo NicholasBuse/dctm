@@ -86,20 +86,6 @@ print_err() {
 }
 
 ###############################################################################
-# Reads system property from $JAVA_OPTS                                       #
-###############################################################################
-read_property() {
-  PropValue=$(echo "$JAVA_OPTS" | sed -e 's/.*-D'"$1"'=\(\"\(\(\([^\"]\|\(\\\"\)\)*\)\)\"\|\(\(\(\\ \)\|[^ ]\)*\)\).*/\1/;s/^\"//;s/\"$//')
-}
-
-###############################################################################
-# Removes system property from $JAVA_OPTS                                     #
-###############################################################################
-remove_property() {
-  JAVA_OPTS=$(echo "$JAVA_OPTS" | sed -e 's/-D'"$1"'=\(\"\(\(\([^\"]\|\(\\\"\)\)*\)\)\"\|\(\(\(\\ \)\|[^ ]\)*\)\)//')
-}
-
-###############################################################################
 # reads java pid to $svrv_pid variable
 ###############################################################################
 read_java_pid() {
@@ -441,6 +427,12 @@ start_and_monitor_server() {
 
   setup_jboss_cmdline
 
+  if [ "x$?" != "x0" ]; then
+    print_err "Unable to setup cmd line"
+    write_state FAILED_NOT_RESTARTABLE:N:Y
+    return 1
+  fi
+
   while true; do
     count=`expr ${count} + 1`
     update_base_time
@@ -523,6 +515,16 @@ start_server_script() {
      trap "exec >>\"$OutFile\" 2>&1" 1
      IFS=""; while read line; do
        case $line in
+         *java.net.BindException:*)
+           read_file "$StateFile"
+           case $REPLY in
+             STARTING:N:N)
+               print_err "Got fatal error, exiting"
+               write_state FAILED_NOT_RESTARTABLE:N:Y
+               force_kill
+             ;;
+           esac
+         ;;
 #JBoss AS 4
          *\[Server\]\ JBoss\ \(MX\ MicroKernel\)\ *Started\ in*)
            write_state RUNNING:Y:N
@@ -569,14 +571,14 @@ setup_jboss_cmdline() {
   if [ "x$JAVA_HOME" != "x" -a -x "$JAVA_HOME/bin/java" ]; then
     JAVA="$JAVA_HOME/bin/java"
   else
-    echo "Please specify a valid JAVA_HOME" >&2
+    print_err "Please specify a valid JAVA_HOME" >&2
     return 1
   fi
 
   # Setup the classpath
   runjar="$JBOSS_HOME/bin/run.jar"
   if [ ! -f "$runjar" ]; then
-    echo "Missing required file: $runjar" >&2
+    print_err "Missing required file: $runjar" >&2
     return 1
   fi
 
@@ -687,9 +689,8 @@ setup_jboss_cmdline() {
   CommandName=$JAVA
   CommandArgs="$JAVA_OPTS $MEM_ARGS org.jboss.Main $JBOSS_OPTS"
 
-
-echo $CommandName
-echo $CommandArgs
+  print_info $CommandName
+  print_info $CommandArgs
 }
 
 ###############################################################################

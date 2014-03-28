@@ -395,6 +395,12 @@ start_and_monitor_server() {
 
   setup_tomcat_cmdline
 
+  if [ "x$?" != "x0" ]; then
+    print_err "Unable to setup cmd line"
+    write_state FAILED_NOT_RESTARTABLE:N:Y
+    return 1
+  fi
+
   while true; do
     count=`expr ${count} + 1`
     update_base_time
@@ -477,6 +483,16 @@ start_server_script() {
      trap "exec >>\"$OutFile\" 2>&1" 1
      IFS=""; while read line; do
        case $line in
+         *java.net.BindException:*)
+           read_file "$StateFile"
+           case $REPLY in
+             STARTING:N:N)
+               print_err "Got fatal error, exiting"
+               write_state FAILED_NOT_RESTARTABLE:N:Y
+               force_kill
+             ;;
+           esac
+         ;;
          *\Server\ startup\ in*)
            write_state RUNNING:Y:N
          ;;
@@ -502,7 +518,7 @@ setup_tomcat_cmdline() {
   # Setup the classpath
   runjar="$CATALINA_HOME/bin/bootstrap.jar"
   if [ ! -f "$runjar" ]; then
-    echo "Missing required file: $runjar" >&2
+    print_err "Missing required file: $runjar" >&2
     return 1
   fi
 
@@ -535,16 +551,16 @@ setup_tomcat_cmdline() {
   if [ -r "$CATALINA_HOME/bin/setclasspath.sh" ]; then
     . "$CATALINA_HOME/bin/setclasspath.sh"
   else
-    echo "Cannot find $CATALINA_HOME/bin/setclasspath.sh"
-    echo "This file is needed to run this program"
-    exit 1
+    print_err "Cannot find $CATALINA_HOME/bin/setclasspath.sh"
+    print_err "This file is needed to run this program"
+    return 1
   fi
 
   # Setup the JVM
   if [ "x$JAVA_HOME" != "x" -a -x "$JAVA_HOME/bin/java" ]; then
     JAVA="$JAVA_HOME/bin/java"
   else
-    echo "Please specify a valid JAVA_HOME" >&2
+    print_err "Please specify a valid JAVA_HOME" >&2
     return 1
   fi
 
@@ -628,9 +644,8 @@ setup_tomcat_cmdline() {
   CommandName=$JAVA
   CommandArgs="$JAVA_OPTS $MEM_ARGS org.apache.catalina.startup.Bootstrap start"
 
-
-echo $CommandName
-echo $CommandArgs
+  print_info $CommandName
+  print_info $CommandArgs
 }
 
 ###############################################################################
