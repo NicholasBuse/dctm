@@ -377,13 +377,13 @@ check_dirs() {
     exit 1
   fi
 
-  if [ ! -d "$JBOSS_HOME/server/$ServerName" ]; then
-    echo "Directory '$JBOSS_HOME/server/$ServerName' not found.  Make sure jboss server directory exists and is accessible" >&2
+  if [ ! -d "$ServerDir" ]; then
+    echo "Directory '$ServerDir' not found.  Make sure jboss server directory exists and is accessible" >&2
     exit 1
   fi
 
-  mkdir -p -- "$JBOSS_HOME/server/$ServerName/log"
-  mkdir -p -- "$JBOSS_HOME/server/$ServerName/nodemanager"
+  mkdir -p -- "$ServerDir/log"
+  mkdir -p -- "$ServerDir/nodemanager"
 }
 
 ###############################################################################
@@ -410,7 +410,7 @@ do_start() {
   # Remove previous state file
   rm -f -- "$StateFile"
   # Change to server root directory
-  cd -- "$JBOSS_HOME/server/$ServerName"
+  cd -- "$ServerDir"
   # Now start the server and monitor loop
   start_and_monitor_server &
   # Wait for server to start up
@@ -884,12 +884,14 @@ if [ "x$ServerName" = "x" ]; then
   exit 1
 fi
 
+ServerDir="$JBOSS_HOME/server/$ServerName"
+
 NMCMD=`echo $1 | tr '[a-z]' '[A-Z]'`
 
-OutFile=$JBOSS_HOME/server/$ServerName/log/$ServerName.out
-PidFile=$JBOSS_HOME/server/$ServerName/nodemanager/$ServerName.pid
-LockFile=$JBOSS_HOME/server/$ServerName/nodemanager/$ServerName.lck
-StateFile=$JBOSS_HOME/server/$ServerName/nodemanager/$ServerName.state
+OutFile=$ServerDir/log/$ServerName.out
+PidFile=$ServerDir/nodemanager/$ServerName.pid
+LockFile=$ServerDir/nodemanager/$ServerName.lck
+StateFile=$ServerDir/nodemanager/$ServerName.state
 
 if [ "x$RestartInterval" = "x" ]; then
   RestartInterval=10
