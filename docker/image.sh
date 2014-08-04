@@ -311,8 +311,11 @@ cat >> $TARGET/etc/ld.so.conf.d/oracle-instant-client-x86_64.conf <<__EOF__
 /usr/lib/oracle/11.2/client64/lib
 __EOF__
 
-sed -i -e 's/memory_target=/#memory_target=/' $TARGET/u01/app/oracle/product/11.2.0/xe/config/scripts/init.ora
-sed -i -e 's/memory_target=/#memory_target=/' $TARGET/u01/app/oracle/product/11.2.0/xe/config/scripts/initXETemp.ora
+
+for file in /u01/app/oracle/product/11.2.0/xe/config/scripts/init.ora /u01/app/oracle/product/11.2.0/xe/config/scripts/initXETemp.ora; do
+  sed -i -e 's/memory_target=/#memory_target=/' $TARGET/$file
+  sed -i -e 's/sessions=.*/sessions=150\nprocesses=100/' $TARGET/$file
+done
 
 cat >> $TARGET/$DOCUMENTUM_OWNER_HOME/.bashrc <<__EOF__
 # Documentum env
@@ -331,6 +334,8 @@ export CLASSPATH=\$DOCUMENTUM_SHARED/config:\$DOCUMENTUM_SHARED/dctm.jar:\$DM_HO
 # Path
 export PATH=/bin:/usr/bin:\$ORACLE_HOME/bin:\$DM_HOME/bin:\$DOCUMENTUM/dba
 
+# Libraries
+export LD_LIBRARY_PATH=\$DM_HOME/bin:\$JAVA_HOME/jre/lib/amd64:\$JAVA_HOME/jre/lib/amd64/server 
 __EOF__
 
 chown $DOCUMENTUM_OWNER_UID $TARGET/$DOCUMENTUM_OWNER_HOME/.bashrc
