@@ -43,7 +43,7 @@ export_from_pid() {
 prompt() {
   PROMPT=$*
   while true; do
-     read -p "$PROMPT" -t $READ_TIMEOUT REPLY
+     read -p "$PROMPT " -t $READ_TIMEOUT REPLY
      STATUS=$?
      if [ "x$STATUS" != "x0" ]; then
        return $STATUS
@@ -324,6 +324,7 @@ perform_setup() {
 
 start() {
   echo -n $"Starting $prog: "
+  echo
   perform_setup
   RETVAL=$?
   return $RETVAL

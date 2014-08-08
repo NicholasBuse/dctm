@@ -82,11 +82,11 @@ process_template() {
 }
 
 
-YUMDIR=$(mktemp -d --tmpdir $(basename $0).XXXXXX)
-mkdir $YUMDIR/yum.repos.d
+YUMDIR=$(mktemp -d --tmpdir $(basename $0).XXXXXX) || exit 1
+mkdir $YUMDIR/yum.repos.d || exit 1
 
-TARGET=$(mktemp -d --tmpdir $(basename $0).XXXXXX)
-BUILD_DIR=$(mktemp -d --tmpdir $(basename $0).XXXXXX)
+TARGET=$(mktemp -d --tmpdir $(basename $0).XXXXXX) || exit 1
+BUILD_DIR=$(mktemp -d --tmpdir $(basename $0).XXXXXX) || exit 1
 
 cat > $YUMDIR/yum.conf <<__EOF__
 [main]
@@ -112,10 +112,10 @@ __EOF__
 
 
 echo "Installing packages..."
-yum -c $YUMDIR/yum.conf --installroot=$TARGET -y -q groupinstall \
+yum -c $YUMDIR/yum.conf --installroot=$TARGET -y --noplugins groupinstall \
   base core compat-libraries
 
-yum -c $YUMDIR/yum.conf --installroot=$TARGET -y -q clean all
+yum -c $YUMDIR/yum.conf --installroot=$TARGET -y --noplugins clean all
 
 mknod -m 666 $TARGET/dev/tty0 c 4 0
 mknod -m 600 $TARGET/dev/console c 5 1

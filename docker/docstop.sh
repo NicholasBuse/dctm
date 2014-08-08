@@ -22,7 +22,7 @@ if [ "x$INIT_PID" = "x0" ]; then
   exit
 fi
 
-nsenter --target $INIT_PID --mount --uts --ipc --net --pid /bin/bash >/dev/null 2>&1 <<__EOF__
+nsenter -t $INIT_PID -m -u -i -n -p /bin/bash >/dev/null 2>&1 <<__EOF__
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin
 shutdown -h now
 __EOF__
