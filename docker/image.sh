@@ -1,10 +1,10 @@
 #!/bin/sh
 
 DOCKER_IMAGE=documentum
-DOCKER_TAG=71
+DOCKER_TAG=72
 DOCKER_URL=-
 
-YUM_URL=http://public-yum.oracle.com/repo/OracleLinux/OL6/5/base/x86_64/
+YUM_URL=http://public-yum.oracle.com/repo/OracleLinux/OL6/6/base/x86_64/
 
 RPM_PACKAGES=(
   oracle-instantclient11.2-basic-11.2.0.4.0-1.x86_64.rpm
@@ -14,14 +14,14 @@ RPM_PACKAGES=(
 )
 
 
-DOCUMENTUM_CS_ARCHIVE=Content_Server_7.1_linux64_oracle.tar
-DOCUMENTUM_CS_PATCH=CS_7.1.0060.0200_linux_ora_P06.tar.gz
+DOCUMENTUM_CS_ARCHIVE=Content_Server_7.2_linux64_oracle.tar
+DOCUMENTUM_CS_PATCH=CS_7.2.0090.0239_linux_ora_P09.tar.gz
 DOCUMENTUM_PE_ARCHIVE=Process_Engine_linux.tar
 
 DOCUMENTUM_OWNER=dmadmin
 DOCUMENTUM=/u01/documentum/cs
 DOCUMENTUM_SHARED=$DOCUMENTUM/shared
-DM_HOME=$DOCUMENTUM/product/7.1
+DM_HOME=$DOCUMENTUM/product/7.2
 DOCUMENTUM_JMS_PORT=9080
 DOCUMENTUM_SERVICE_NAME=dm_DOCUMENTUM
 DOCUMENTUM_SERVICE_SECURE_NAME=dm_DOCUMENTUM_s
@@ -133,6 +133,10 @@ NETWORKING=yes
 HOSTNAME=localhost.localdomain
 __EOF__
 
+cat > $TARGET/etc/hostname <<__EOF__
+localhost.localdomain
+__EOF__
+
 grep ^nameserver /etc/resolv.conf > $TARGET/etc/resolv.conf
 
 mkdir $TARGET/distr
@@ -143,6 +147,7 @@ done
 
 mount -t proc none $TARGET/proc
 ln -s /proc/self/mounts $TARGET/etc/mtab
+ln -s /proc/self/mounts $TARGET/etc/fstab
 
 echo "Fixing rpm database"
 chroot $TARGET /bin/bash <<__EOF__
@@ -270,6 +275,24 @@ __EOF__
   check_log $DISTRIB_DIR/logs/install.log
 
 fi
+
+echo "Fixing documentum installer to support Oracle XE"
+
+cat >> $TARGET/$DM_HOME/install/versionfix.sh <<__EOF__
+#!/bin/sh
+
+echo "Fixing documentum installer to support Oracle XE"
+unzip \${INSTALL_ZIP} config/minimumDbVersions.ini
+sed -i -e 's/11\.2\.0\.3/11\.2\.0\.2/' config/minimumDbVersions.ini       
+zip -u \${INSTALL_ZIP} config/minimumDbVersions.ini
+rm -f config/minimumDbVersions.ini
+
+__EOF__
+
+chown $DOCUMENTUM_OWNER_UID $TARGET/$DM_HOME/install/versionfix.sh
+
+sed -i -e 's!# extract the resource1.zip if it exists (web installers only)!. \${DM_HOME}/install/versionfix.sh                            !' \
+ $TARGET/$DM_HOME/install/Server_Configuration_Program.bin
 
 echo "Installing process engine..."
 
